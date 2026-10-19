@@ -122,4 +122,5 @@ React 组件通过 `dangerouslySetInnerHTML` 注入生成的 SVG；所有文本�
 
 ## 9. 版权与命名
 - 生成器里的公司名（`corpName`）、型号、编号全部是随机拼出来的虚构内容。**不要**复刻 Bungie、Marathon、UESC、NuCaloric 等真实标志或商标。
-- `references/images/` 里的图只用于研究风格，不要直接拿去当素材发布；其中 06–08 是 Patrick Bloom 在 ArtStation 发布的作品，引用时注明作者。
+- `references/images/` 里的图只用于研究风格，不要直接拿去当素材发布；其中 06–08 是 Patrick Bloom 在 ArtStation 发布的作品（文件名 `pb-brrt-smg-00N`、`pb-medic-0N` 是他的作品编号，不是贴花上的文字），引用时注明作者。
+- 2025 年 Bungie 承认 Marathon 测试版里有一批贴花抄袭了独立艺术家的作品并撤换。生成时只用通用的几何、编号和排版手法，不要临摹任何具体艺术家的图形；该艺术家常用的 "Aleph" 一词也不要用。

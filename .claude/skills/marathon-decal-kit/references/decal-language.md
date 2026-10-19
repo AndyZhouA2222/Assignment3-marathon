@@ -45,6 +45,11 @@
 | 斜杠零 Ø、方括号 [ ]、竖排、镜像、描边、做旧 | 02、03 | 文字变体 `slashedZero` `bracket` `vertical` `mirrored` `outline` `distressed` |
 | 底部酸性绿品牌条 | 06–08 | `sheet()` 的 `footer` |
 
+## 文字词汇
+- 有来源确认的贴花词：**SEAL**（气闸封条）、**ATTACH**（胶带卷）、**CAUTION: HIGH VOLTAGE**，以及标注能量输出的管线标签。
+- 参考图 10 里能直接看到：LINK、ATTACH、ATTACH HERE、SEAL。
+- 其余（PACKAGE、VENT、PURGE 等，见 `WORDS`）是同类风格的扩展词。
+
 ## 规律
 - **编号格式**：`三位数 + 字母 + 五位数`（188 B91543）、`字母三位 + 两位数 + 空格 + 七位数`（SDR37 2445556）、`LOT // 2.1340 7 B`、`型号-*数字`（R9K-*3）。都已写进 `codes`。
 - **字号层级**：每张表 1–2 个超大元素（大圆标或字标），其余元素是它的 1/4 到 1/20。

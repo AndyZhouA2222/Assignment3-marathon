@@ -1,11 +1,13 @@
 ---
 name: marathon-ui-style
-description: Build any UI (web page, app screen, dashboard, React components) in the visual style of Bungie's Marathon (2026) site: graphic-realism, acid lime on black/bone, wide techno type, mono data labels.
+description: Build any UI (web page, app screen, dashboard, game lobby, vault, HUD, React components) in the visual style of Bungie's Marathon (2026): graphic realism, acid lime on black/bone, wide techno type, mono data labels, pixel glyphs. Separate from the ARC Raiders style.
 ---
 
 # Marathon UI Style（马拉松风格 UI 规范）
 
-参考来源：marathonthegame.com 首页结构、Fonts In Use 对 Marathon (2026) 字体的记录、美术总监访谈（"graphic realism"，受 The Designers Republic、Wipeout、Ghost in the Shell、MGS2 影响）、社区整理的品牌色。官方 CSS 未能直接读取，色值为近似值，用于风格复刻而非品牌官方规范。
+参考来源：marathonthegame.com 首页结构、Fonts In Use 对 Marathon (2026) 字体和游戏内界面的记录、美术总监访谈（"graphic realism"，受 The Designers Republic、Wipeout、Ghost in the Shell、MGS2 影响）、上线后到第二赛季的界面改版报道、社区整理的品牌色。官方 CSS 未能直接读取，色值为近似值，用于风格复刻而非品牌官方规范。完整调研（含出处和可信度标注）见 `references/research.md`。
+
+贴花、符号、文字变体用配套的 `marathon-decal-kit` skill 生成（参考图也在那里）。网页 / 官网风格见第 1–11 节，游戏内界面（大厅、仓库、HUD、传送、Codex、结算）见第 12 节。ARC Raiders 风格是另一个独立 skill（`arc-raiders-ui-style`），两者不要混用。
 
 ## 1. 风格内核
 - **Graphic realism**：极简、解构的平面语言 + 可信的工业功能感。像一份军工/企业的技术文档被做成了时装海报。
@@ -29,6 +31,11 @@ description: Build any UI (web page, app screen, dashboard, React components) in
   --mt-magenta: #EA027E;    /* 警示/稀有/赛季 */
   --mt-ultra: #3601FB;      /* 电光蓝，加载/地图/全屏色块 */
   --mt-orange: #FF5500;     /* 危险/倒计时/撤离 */
+  --mt-acid-hi: #E5FF45; --mt-cyan: #01FFFF; --mt-red: #FF0D1A; /* 红：敌对、阵亡 */ --mt-steel: #29324F;
+  /* 稀有度（名称来自游戏，色值近似） */
+  --mt-r-standard: #9A9A9A; --mt-r-enhanced: #4FD34A; --mt-r-deluxe: #2F8BFF; --mt-r-superior: #A646FF; --mt-r-prestige: #F2B705;
+  /* Codex 绿色 CRT 卡 */
+  --mt-crt-bg: #0C1A0E; --mt-crt-fg: #9CFF7A; --mt-font-crt: "VT323", "Silkscreen", monospace;
 
   /* 字体：先找本机原版（见第 3 节 @font-face 别名），没有再用免费替代 */
   --mt-font-display: "MT Display", "Chakra Petch", "Michroma", sans-serif;
@@ -55,7 +62,7 @@ description: Build any UI (web page, app screen, dashboard, React components) in
   --mt-ease: cubic-bezier(.2,.8,0,1);
 }
 ```
-Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..800`、`JetBrains Mono:wght@400;500`、`Instrument Serif`。
+Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..800`、`JetBrains Mono:wght@400;500`、`Instrument Serif`，做 Codex 卡时再加 `VT323`。
 
 ## 3. 字体规则
 ### 本机原版字体自动优先（必须照做）
@@ -82,7 +89,9 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 - Eyebrow（标题上方小字）：mono，11px，全大写，`letter-spacing: 0.12em`，灰色或强调色，常带前缀如 `//`、`01 —`、`[ ]`。
 - 正文：mono 或 wide 的常规字重，15px，`line-height: 1.55`，最大宽度 56ch。正文可用大小写混排。
 - 数字一律等宽（`font-variant-numeric: tabular-nums`），日期写成 `10.19.2026`。
-- serif 只用于一两个词的戏剧化反差（如引言），每页最多一次。
+- serif 只用于一两个词的戏剧化反差（如引言），每页最多一次。IvyPresto 在游戏里只出现在局内界面（玩家说的"EVA 字体"感）。
+- 原版字体特征：KH Interference 只有大写、**等宽**、画在 45° 网格上，外角圆、内角方，灵感来自小票和低分辨率像素屏；Shapiro Wide 定制了带衬线的 I 和 1、弯腿 R；Fraktion Mono 有方形圆角和斜杠零。替代字体选形似的即可，但数字务必等宽。
+- 字体混排是这套风格的"灵魂"（官方 UI 设计师原话："不会去掉 SAUCE"），但每个面板必须只有一个最突出的元素，这是上线后玩家批评最多、第二赛季改得最多的地方。
 
 ## 4. 版式
 - 12 栏网格，外边距 桌面 48px / 移动 16px，栏间距 16px。网格可以用 1px 线显式画出来。
@@ -175,6 +184,19 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 | `MtMarquee` | 结尾宣言跑马灯 | `items` `speed` |
 | `MtStripes` / `MtRule` / `MtCrosshair` | 斜纹警示条 / 4px 酸绿分隔线 / 十字准星 | |
 | `useScramble` / `useReducedMotion` | 文字乱码解码 / 减弱动效检测 | |
+| **局内组件（第 12 节）** | | |
+| `MtTabBar` | 大厅顶部 Tab，选中项酸绿底黑字，带 01/02 编号 | `tabs` `value` `onChange` `end` |
+| `MtItemTile` / `MtItemGrid` | 仓库方格：角落编号和数量、底部稀有度条 + 右上角色块、弹药 / 适配标记 | `item: MtItem` `selected` `onSelect`；`items` `cells` |
+| `MtRarityChip` | 稀有度小标签 | `rarity`: standard / enhanced / deluxe / superior / prestige |
+| `MtSpecTable` | 等宽参数表，重点行酸绿底 | `rows: {k,v,highlight?}[]` `title` |
+| `MtHoldButton` | 长按确认（出售、拆卸） | `duration` `onConfirm` |
+| `MtVitals` | 护盾 / 生命 / 热量分段条，条旁边带数字 | `shield` `health` `heat`（0–1） |
+| `MtFactionCard` | 阵营卡：缩写大字 + 衬线口号 + 声望 | `short` `name` `slogan` `accent` `rank` `progress` |
+| `MtTransfer` | 电光蓝传送 / 加载屏：像素飞蛾 + 逐行状态日志 + 进度 | `lines` `progress` `destination` |
+| `MtPixelMoth` | 对称像素飞蛾，按 seed 稳定生成 | `seed` `cols` `rows` `size` |
+| `MtCodexCard` | 绿色 CRT 风格的 Codex 文档卡 | `id` `title` |
+| `MtExfilResult` | 撤离结算：满版状态词 + 战利品账单 | `status`: exfiltrated / lost，`loot` `currency` |
+| `MtPixelIcon` | 7×7 像素小图标（`MT_PIXEL_ICONS`，14 个） | `name` `size` |
 
 所有动效都遵守 `prefers-reduced-motion`。
 
@@ -213,4 +235,41 @@ export default function Page() {
   );
 }
 ```
+
+## 12. 游戏内界面模式
+网页之外，Marathon 的局内界面有一套自己的模式。下面的结论来自评测、补丁说明和截图说明（详见 `references/research.md`），标了"推断"的是没有一手来源的设计建议。
+
+**大厅**
+- 顶部横向 Tab：Loadout、Vault、Factions、Codex、Rewards、Store。暗底上的选中项用酸绿底黑字。
+- 很多操作是**长按确认**（出售、拆卸、切换菜单），用 `MtHoldButton`。
+- 第二赛季把 Loadout 和 Vault 合并、简化了大厅。做大厅时层级尽量浅，别让玩家钻五六层菜单。
+
+**仓库（Vault）**
+- 网格背包，仓库最多 512 格，物品占格子。方格硬直角，稀有度色出现在格子本身上（底部条 + 角标）。
+- 武器格右下角显示弹药类型图标；配件格左下角显示适配标记：`←` 表示适配已装备武器，`X` 表示都不适配。
+- 稀有度五档：Standard 灰、Enhanced 绿、Deluxe 蓝、Superior 紫、Prestige 金。游戏还有四种色盲模式，重要信息不要只靠颜色区分。
+- 第二赛季简化了物品格、降低了图标颜色饱和度。格子里只放必要信息，详情放在旁边的参数表里。
+
+**HUD**
+- 命中提示是 "X"；倒地敌人头上显示彩色骷髅；有热量条（反向体力）、装备轮盘、10 秒撤离倒计时。
+- 原版的护盾指示太小被大量吐槽。做 HUD 时分段条旁边一定写数字，正文不小于 12px。
+- 推断：左下护盾 / 生命，右下弹药和武器代号，顶部方向条；小号等宽字，酸绿或白色，背景透明。
+
+**传送 / 加载屏**
+- 整屏电光蓝，一只大的像素飞蛾形象，旁边逐行出现状态日志："Searching…"、"Molecular disassembly complete"、"Transfer to destination in progress…"。用 `MtTransfer`。
+
+**Codex**
+- 档案卡用 80 年代绿色荧光屏字体（像 Minitel 终端），绿底绿字、扫描线、闪烁光标。用 `MtCodexCard`。
+
+**撤离结算**（推断）
+- 满版状态词（EXFILTRATED / RUNNER LOST），下面是等宽字的战利品账单、稀有度标签和合计。用 `MtExfilResult`。
+
+**阵营**
+- 每个阵营当作独立品牌：缩写 + 全称 + 口号，各自一个强调色，叠在统一的暗色系统上。只有 Arachne 的血红色有明确来源，其他阵营色是建议值。做原创项目时用自己编的阵营名，不要用官方阵营标志。
+
+**可读性守则**（来自上线后的批评和第二赛季的修正）
+- 保留字体混排，但每个面板只有一个主角。
+- 图标要能互相区分，不要几种物品用几乎一样的图标。
+- 数值写在条旁边，不要只靠条的长短。
+- 菜单层级浅，常用操作有快捷入口。
 
