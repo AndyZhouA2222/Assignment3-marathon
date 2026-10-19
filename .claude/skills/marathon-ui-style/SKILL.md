@@ -30,11 +30,11 @@ description: Build any UI (web page, app screen, dashboard, poster-like layout) 
   --mt-ultra: #3601FB;      /* 电光蓝，加载/地图/全屏色块 */
   --mt-orange: #FF5500;     /* 危险/倒计时/撤离 */
 
-  /* 字体（商用原字体 → 免费替代） */
-  --mt-font-display: "KH Interference", "Chakra Petch", "Michroma", sans-serif;
-  --mt-font-wide: "Shapiro Wide", "Archivo", sans-serif;   /* Archivo 用 font-stretch:125% */
-  --mt-font-serif: "IvyPresto Headline", "Instrument Serif", serif; /* 极少量点缀 */
-  --mt-font-mono: "Fraktion Mono", "JetBrains Mono", "IBM Plex Mono", monospace;
+  /* 字体：先找本机原版（见第 3 节 @font-face 别名），没有再用免费替代 */
+  --mt-font-display: "MT Display", "Chakra Petch", "Michroma", sans-serif;
+  --mt-font-wide: "MT Wide", "Archivo", sans-serif;   /* Archivo 用 font-stretch:125% */
+  --mt-font-serif: "MT Serif", "Instrument Serif", serif; /* 极少量点缀 */
+  --mt-font-mono: "MT Mono", "JetBrains Mono", "IBM Plex Mono", monospace;
 
   /* 字号（桌面），移动端约 ×0.6 */
   --mt-fs-mega: clamp(56px, 10vw, 160px); /* 满版标题 */
@@ -58,6 +58,25 @@ description: Build any UI (web page, app screen, dashboard, poster-like layout) 
 Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..800`、`JetBrains Mono:wght@400;500`、`Instrument Serif`。
 
 ## 3. 字体规则
+### 本机原版字体自动优先（必须照做）
+每个页面都要带上下面这段 `@font-face` 别名。浏览器会按 `local()` 顺序在用户电脑里找原版字体：找到就直接用原版；一个都找不到时这条 `@font-face` 失效，字体栈自动落到下一个免费替代。替代字体只有真正用到时才会下载，所以装了原版的机器不会多下载。`local()` 里同时写了全名和 PostScript 名，因为不同系统、不同授权包里的字体名写法不一样。
+```css
+/* Display：KH Interference */
+@font-face{font-family:"MT Display";font-weight:300;src:local("KH Interference Light"),local("KHInterference-Light");}
+@font-face{font-family:"MT Display";font-weight:400 900;src:local("KH Interference"),local("KH Interference Regular"),local("KHInterference-Regular"),local("KHInterference");}
+/* Wide：Shapiro Wide（65 / Wide 系列） */
+@font-face{font-family:"MT Wide";font-weight:400 900;src:local("Shapiro 65 Light Wide"),local("Shapiro Wide"),local("Shapiro-65LightWide"),local("Shapiro65LightWide"),local("ShapiroWide");}
+/* Serif：IvyPresto Headline */
+@font-face{font-family:"MT Serif";src:local("IvyPresto Headline"),local("IvyPresto Headline Regular"),local("IvyPrestoHeadline-Regular"),local("IvyPrestoHeadline");}
+/* Mono：Fraktion Mono */
+@font-face{font-family:"MT Mono";font-weight:400;src:local("Fraktion Mono"),local("Fraktion Mono Regular"),local("FraktionMono-Regular"),local("PPFraktionMono-Regular"),local("PP Fraktion Mono");}
+@font-face{font-family:"MT Mono";font-weight:500 900;src:local("Fraktion Mono Medium"),local("FraktionMono-Medium"),local("PPFraktionMono-Medium"),local("PP Fraktion Mono Medium");}
+```
+- 原版生效时，Archivo 专用的 `font-stretch:125%` 对 Shapiro Wide 没有副作用，可以保留。
+- 知道用户机器上字体的确切名称时（例如在 Font Book 或 `fc-list` 里看到的名字），把它补进对应的 `local()` 列表最前面。
+- 非网页场景（Figma、海报、原生 App、Python 出图）：先查本机是否装了原版，macOS 用 `system_profiler SPFontsDataType | grep -iE "interference|shapiro|fraktion|ivypresto"`，Linux 用 `fc-list | grep -iE "..."`，Windows 看 `C:\Windows\Fonts` 或 `%LOCALAPPDATA%\Microsoft\Windows\Fonts`。有就用原版，没有才用第 2 节列出的免费替代，并在交付时说明用了哪一种。
+
+### 排版规则
 - 标题：display 字体，**全大写**，字重 700，`letter-spacing: -0.01em`，`line-height: 0.9`，敢于让字撑满容器甚至出血裁切。
 - 次级标题/导航：wide 字体，全大写，`letter-spacing: 0.04em`。
 - Eyebrow（标题上方小字）：mono，11px，全大写，`letter-spacing: 0.12em`，灰色或强调色，常带前缀如 `//`、`01 —`、`[ ]`。
