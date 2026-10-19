@@ -1,6 +1,6 @@
 ---
 name: marathon-ui-style
-description: Build any UI (web page, app screen, dashboard, poster-like layout) in the visual style of Bungie's Marathon (2026) site: graphic-realism, acid lime on black/bone, wide techno type, mono data labels.
+description: Build any UI (web page, app screen, dashboard, React components) in the visual style of Bungie's Marathon (2026) site: graphic-realism, acid lime on black/bone, wide techno type, mono data labels.
 ---
 
 # Marathon UI Style（马拉松风格 UI 规范）
@@ -95,7 +95,7 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 ## 5. 组件
 **主按钮（Buy now 类）**
 ```css
-.mt-btn{font:700 14px/1 var(--mt-font-wide);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;
+.mt-btn{font:700 14px/1 var(--mt-font-wide);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;
   background:var(--mt-acid);color:var(--mt-black);padding:16px 28px;border:0;border-radius:0;
   clip-path:polygon(0 0,calc(100% - var(--mt-cut)) 0,100% var(--mt-cut),100% 100%,0 100%);
   transition:background .15s var(--mt-ease),color .15s;}
