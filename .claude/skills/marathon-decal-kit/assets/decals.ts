@@ -91,17 +91,30 @@ function text(x: number, y: number, s: string, o: TextOpts) {
   return `<text x="${n(x)}" y="${n(y)}" font-family="${FONTS[o.font ?? "mono"]}" font-size="${n(o.size)}" font-weight="${o.weight ?? 500}" fill="${o.fill}" text-anchor="${o.anchor ?? "start"}"${len}${ls}${o.extra ? " " + o.extra : ""}>${esc(s)}</text>`;
 }
 const textW = (s: string, size: number, font: FontKey = "mono") => s.length * size * ADV[font];
+const isHex = (h: string) => /^#[0-9a-f]{6}$/i.test(h);
+const rgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+/** Relative luminance (WCAG) of a #RRGGBB color. */
+const lum = (h: string) => {
+  const [r, g, b] = rgb(h).map(v => v / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
 /** Black or white, whichever reads better on `fill` (hex). */
 export function onColor(fill: string) {
-  const h = fill.replace("#", "");
-  if (h.length < 6) return "#FFFFFF";
-  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.3 ? "#0A0A0A" : "#FFFFFF";
+  return isHex(fill) && lum(fill) > 0.3 ? "#0A0A0A" : "#FFFFFF";
 }
+const contrast = (a: string, b: string) => {
+  if (!isHex(a) || !isHex(b)) return 21;
+  const [x, y] = [lum(a), lum(b)].sort((m, k) => k - m);
+  return (x + 0.05) / (y + 0.05);
+};
+/** Linear blend of two #RRGGBB colors (t = 0 → a, 1 → b). */
+const mix = (a: string, b: string, t: number) =>
+  isHex(a) && isHex(b) ? "#" + rgb(a).map((v, i) => Math.round(v + (rgb(b)[i] - v) * t).toString(16).padStart(2, "0")).join("") : a;
+const saturated = (h: string) => { if (!isHex(h)) return false; const v = rgb(h); return Math.max(...v) - Math.min(...v) > 60; };
 
 /** Wraps a decal into a standalone <svg>. `background` paints the palette bg (or a given color). */
 /** Google Fonts stylesheet for the free look-alikes (locally installed originals still win). */
-export const FONT_CSS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,400..800&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;800&family=Instrument+Serif&display=swap";
+export const FONT_CSS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,400..800&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;800&family=Instrument+Serif&display=swap";
 
 export function toSvg(d: Decal, o: { background?: boolean | string; palette?: PaletteInput; padding?: number; scale?: number; embedFonts?: boolean } = {}) {
   const p = o.padding ?? 0;
@@ -478,11 +491,14 @@ export function codeBox(o: Base & { variant?: "big" | "split" | "stack"; color?:
 /** Rough painted tape strip (masking-tape / spray-paint bar). */
 export function tape(o: Base & { w?: number; h?: number; color?: string } = {}): Decal {
   const r = rng(o.seed ?? 1), W = o.w ?? 360, H = o.h ?? 56, c = o.color ?? r.pick(pal(o.palette).accents);
-  const pts: number[][] = [];
-  for (let x = 0; x <= W; x += 12) pts.push([x, r.int(0, 6)]);
-  for (let y = 0; y <= H; y += 8) pts.push([W - r.int(0, 8), y]);
-  for (let x = W; x >= 0; x -= 12) pts.push([x, H - r.int(0, 6)]);
-  for (let y = H; y >= 0; y -= 8) pts.push([r.int(0, 8), y]);
+  // Edges are random walks, so long strips read as brushed rather than serrated.
+  const pts: number[][] = [], dy = Math.max(4, H * 0.1), dx = Math.max(5, H * 0.14);
+  let e = dy / 2;
+  const walk = (max: number) => (e = Math.min(max, Math.max(0, e + (r.next() - 0.5) * max * 0.5)));
+  for (let x = 0; x <= W; x += 10) pts.push([x, walk(dy)]);
+  for (let y = 0; y <= H; y += 6) pts.push([W - walk(dx), y]);
+  for (let x = W; x >= 0; x -= 10) pts.push([x, H - walk(dy)]);
+  for (let y = H; y >= 0; y -= 6) pts.push([walk(dx), y]);
   return { kind: "tape", w: W, h: H, body: poly(pts, c) };
 }
 
@@ -530,7 +546,7 @@ export function warningLabel(o: Base & { kind?: "NOTICE" | "WARNING" | "CAUTION"
 }
 
 /** Repeating word band: SEAL - SEAL - SEAL / LINK LINK LINK / ATTACH HERE */
-export function repeatBand(o: Base & { word?: string; sep?: string; w?: number; h?: number; fill?: string; color?: string; sepColor?: string; pill?: boolean; mark?: boolean } = {}): Decal {
+export function repeatBand(o: Base & { word?: string; sep?: string; w?: number; h?: number; fill?: string; color?: string; sepColor?: string; pill?: boolean; mark?: boolean; weight?: number } = {}): Decal {
   const r = rng(o.seed ?? 1), p = pal(o.palette);
   const word = (o.word ?? r.pick(WORDS)).toUpperCase(), sep = o.sep ?? r.pick(["-", " ", " / ", " · "]);
   const W = o.w ?? 600, H = o.h ?? 56, fill = o.fill ?? r.pick(p.accents), col = o.color ?? onColor(fill);
@@ -539,8 +555,8 @@ export function repeatBand(o: Base & { word?: string; sep?: string; w?: number; 
   let row = "";
   for (let i = 0; i < reps; i++) {
     const x = i * uw;
-    row += text(x, H * 0.76, (o.mark ? "▪" : "") + word, { size: s, fill: col, width: textW((o.mark ? "▪" : "") + word, s) });
-    if (sep.trim()) row += text(x + textW(word, s), H * 0.76, sep, { size: s, fill: o.sepColor ?? col, width: textW(sep, s) });
+    row += text(x, H * 0.76, (o.mark ? "▪" : "") + word, { size: s, fill: col, weight: o.weight, width: textW((o.mark ? "▪" : "") + word, s) });
+    if (sep.trim()) row += text(x + textW(word, s), H * 0.76, sep, { size: s, fill: o.sepColor ?? col, weight: o.weight, width: textW(sep, s) });
   }
   const shape = o.pill ? `rx="${H / 2}"` : "";
   return { kind: "repeatBand", w: W, h: H, body: `<clipPath id="${id}"><rect width="${W}" height="${H}" ${shape}/></clipPath>${rect(0, 0, W, H, fill, shape)}<g clip-path="url(#${id})">${row}</g>` };
@@ -550,8 +566,7 @@ export function repeatBand(o: Base & { word?: string; sep?: string; w?: number; 
 export function pillTag(o: Base & { code?: string; fill?: string; dot?: string; arrow?: boolean; end?: "left" | "right"; w?: number } = {}): Decal {
   const r = rng(o.seed ?? 1), p = pal(o.palette);
   // Default to the palette's first saturated accent (safety orange on hazard/lab); mono palettes get a plain pill.
-  const sat = (h: string) => { const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return Math.max(...v) - Math.min(...v) > 60; };
-  const hues = p.accents.filter(sat);
+  const hues = p.accents.filter(saturated);
   const W = o.w ?? 300, H = 64, fill = o.fill ?? hues[0] ?? p.fg;
   const dot = o.dot ?? (hues.length > 1 ? r.pick(hues.slice(1)) : p.bg), ink = onColor(fill);
   const code = o.code ?? (r.chance(0.5) ? codes.stamp(r) : `${r.int(1, 99).toString().padStart(3, "0")}.${str(r, L, 1)}`);
@@ -593,6 +608,166 @@ export function lockup(o: Base & { text?: string; stamp?: string; color?: string
   b += `<g transform="translate(815 192)">${reticle({ variant: "plus", size: 44, color: col, stroke: 2 }).body}</g>`;
   b += place(ruler({ w: 240, color: col }), 440, 212, 240, 34);
   return { kind: "lockup", w: W, h: H, body: b };
+}
+
+/* ============================== thin codes, big type, hardware ============================== */
+
+const LOW = "abcdeqr";
+
+/** Thin grotesk codes from the prop sheets: + Sbr130 **+, (·)( Sb 021a821), Mq EXC —, 023/820/320 stacks, R 0001 -02Q 000 R. */
+export function thinCode(o: Base & { variant?: "line" | "bracket" | "overbar" | "stack" | "range"; text?: string; size?: number; color?: string; weight?: number } = {}): Decal {
+  const r = rng(o.seed ?? 1), p = pal(o.palette), s = o.size ?? 64, wt = o.weight ?? 300;
+  const v = o.variant ?? r.pick(["line", "line", "bracket", "overbar", "stack", "range"] as const);
+  const col = o.color ?? r.pick([p.fg, p.muted]);
+  const gw = (t: string) => textW(t, s, "grotesk");
+  const T = (x: number, t: string, weight = wt) => text(x, s * 0.8, t, { size: s, fill: col, font: "grotesk", weight, width: gw(t) });
+  const mk = (w: number, h: number, body: string): Decal => ({ kind: "thinCode", w, h, body });
+  const digits = (k: number) => String(r.int(0, 10 ** k - 1)).padStart(k, "0");
+  if (v === "stack") {
+    const lines = o.text ? o.text.split("/") : [digits(3), digits(3), digits(3)];
+    const w = Math.max(...lines.map(gw));
+    return mk(w, lines.length * s * 1.05, lines.map((l, i) => text(w, (i + 0.8) * s * 1.05, l, { size: s, fill: col, font: "grotesk", weight: wt, width: gw(l), anchor: "end" })).join(""));
+  }
+  if (v === "range") {
+    const t = o.text ?? `${digits(4)} -${digits(2)}${str(r, L, 1)} ${digits(3)}`, gap = s * 0.3, rw = gw("R"), tw = gw(t);
+    return mk(rw * 2 + tw + gap * 2, s, T(0, "R", 500) + T(rw + gap, t) + T(rw + tw + gap * 2, "R", 500));
+  }
+  if (v === "bracket") {
+    const lab = `${str(r, L, 1)}${str(r, LOW, 1)}`, code = o.text ?? `0${digits(2)}${str(r, LOW, 1)}${digits(3)}`;
+    const pre = r.chance(0.4) ? `${r.pick(["≤", "≥"])}${r.int(1, 9)}` : "";
+    const P = (x: number, t: string) => text(x, s * 0.8, t, { size: s, fill: col, font: "grotesk", weight: 700, width: s * 0.3 * t.length });
+    let x = 0, b = "";
+    if (pre) { b += T(0, pre, 500); x += gw(pre) + s * 0.1; }
+    b += P(x, "(") + rect(x + s * 0.34, s * 0.4, s * 0.16, s * 0.16, col) + rect(x + s * 0.24, s * 0.5, s * 0.07, s * 0.07, col) + P(x + s * 0.56, ")(");
+    x += s * 1.25;
+    b += T(x, lab); x += gw(lab) + s * 0.8;
+    b += T(x, code); x += gw(code) + s * 0.04;
+    return mk(x + s * 0.3, s, b + P(x, ")"));
+  }
+  if (v === "overbar") {
+    const t = o.text ?? `${str(r, L, 1)}${str(r, LOW, 1)} ${str(r, L, 3)}${r.chance(0.5) ? `   ${str(r, L, 2)}` : ""}`;
+    const boxed = r.chance(0.35), pd = boxed ? s * 0.2 : 0, ink = boxed ? p.muted : col, tw = gw(t), lead = r.chance(0.4) ? s * 0.9 : 0;
+    const w = lead + tw + s * 1.3 + pd * 2, h = s * 1.2 + pd * 2;
+    let b = boxed ? rect(0, 0, w, h, p.fg) : "";
+    if (lead) b += rect(pd, pd + s * 0.62, s * 0.5, s * 0.07, ink);
+    b += rect(pd + lead + s * 0.04, pd, s * 0.42, s * 0.07, ink);
+    b += text(pd + lead, pd + s, t, { size: s, fill: ink, font: "grotesk", weight: wt, width: tw });
+    return mk(w, h, b + rect(pd + lead + tw + s * 0.5, pd + s * 0.62, s * 0.6, s * 0.07, ink));
+  }
+  const gens = [
+    () => `${str(r, L, 1)}${str(r, LOW, 2)}${digits(3)}`, // Sbr130
+    () => `${digits(2)}${str(r, L, 2)}/.${str(r, L, 1)}`, // 92EE/.S
+    () => `${str(r, L, 2)}${r.int(0, 9)}${str(r, L, 1)}${r.int(0, 9)} ${str(r, L, 1)}*${str(r, L, 1)}`, // RO4E3 O*O
+    () => `0${digits(2)}${str(r, LOW, 1)}${digits(3)}`, // 021a821
+    () => `${str(r, L, 1)} ${r.int(1, 9)}${str(r, L, 2)} -`, // A 5PN -
+  ];
+  const t = o.text ?? r.pick(gens)();
+  const [pre, post] = r.pick<[string, string]>([["", ""], ["", ""], ["+ ", " **+"], ["- ", " -"], ["", " *"]]);
+  return mk(gw(pre + t + post), s, T(0, pre + t + post));
+}
+
+/** Oversized glyphs: stroke-built M / W / A / N, big grotesk numerals (S8 with underbar), heavy italics (Q4), thin outlines. */
+export function bigType(o: Base & { variant?: "stroke" | "numeral" | "italic" | "outline"; text?: string; size?: number; color?: string } = {}): Decal {
+  const r = rng(o.seed ?? 1), p = pal(o.palette), H = o.size ?? 200;
+  const v = o.variant ?? r.pick(["stroke", "numeral", "numeral", "italic", "outline"] as const);
+  const col = o.color ?? r.pick([p.fg, p.fg, p.muted]);
+  const mk = (w: number, h: number, body: string): Decal => ({ kind: "bigType", w, h, body });
+  // Round glyphs overshoot cap height and baseline; keep a little room so the outer <svg> doesn't clip them.
+  const mkType = (w: number, h: number, body: string) => mk(w, h + H * 0.08, `<g transform="translate(0 ${n(H * 0.04)})">${body}</g>`);
+  if (v === "stroke") {
+    // Polylines in unit space; ends overshoot the box and get clipped flat, joins stay mitred.
+    const shapes: Record<string, [number, number[][]]> = {
+      M: [1.75, [[0, 1.1], [0.27, 0], [0.5, 0.72], [0.73, 0], [1, 1.1]]],
+      W: [1.75, [[0, -0.1], [0.27, 1], [0.5, 0.28], [0.73, 1], [1, -0.1]]],
+      A: [1.05, [[0, 1.1], [0.5, 0], [1, 1.1]]],
+      N: [0.9, [[0, 1.1], [0, 0], [1, 1], [1, -0.1]]],
+    };
+    const [ratio, pts] = shapes[(o.text ?? r.pick(Object.keys(shapes))).toUpperCase()] ?? shapes.M;
+    const W = H * ratio, sw = H * r.pick([0.1, 0.12, 0.15]), id = uid("bt"), xs = (x: number) => sw * 0.7 + x * (W - sw * 1.4);
+    return mk(W, H, `<clipPath id="${id}"><rect width="${n(W)}" height="${H}"/></clipPath><polyline clip-path="url(#${id})" points="${pts.map(([x, y]) => `${n(xs(x))},${n(y * H)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${n(sw)}" stroke-linejoin="miter" stroke-miterlimit="12"/>`);
+  }
+  if (v === "numeral") {
+    const t = o.text ?? r.pick([String(r.int(0, 9)), String(r.int(10, 99)), `${str(r, L, 1)}${r.int(1, 9)}`, str(r, "AEKMSX", 1)]);
+    const size = H * 1.37, w = textW(t, size, "grotesk") * 1.08, under = r.chance(0.4);
+    const b = text(0, H, t, { size, fill: col, font: "grotesk", weight: r.pick([300, 400, 500]), width: w });
+    return under ? mkType(w, H * 1.23, b + rect(0, H * 1.1, w, H * 0.13, col)) : mkType(w, H, b);
+  }
+  if (v === "italic") {
+    const t = o.text ?? `${str(r, L, 1)}${r.int(1, 9)}`, size = H * 1.4, tw = textW(t, size, "display"), sk = H * 0.27;
+    return mkType(tw + sk, H, `<g transform="translate(${n(sk)} 0) skewX(-15)">${text(0, H, t, { size, fill: col, font: "display", weight: 700, width: tw })}</g>`);
+  }
+  const t = o.text ?? str(r, "CEMNOSUX", 1), size = H * 1.37, tw = textW(t, size, "wide");
+  return mkType(tw, H, text(0, H, t, { size, fill: "none", font: "wide", weight: 700, width: tw, extra: `stroke="${col}" stroke-width="${n(H * 0.022)}"` }));
+}
+
+/** Small hardware parts from the prop atlases: keycaps, toggles, LED rails, plus buttons, capsules, numbered dots, knobs, nested sockets. */
+export function button(o: Base & { variant?: "key" | "toggle" | "led" | "plus" | "pill" | "dots" | "knob" | "socket"; color?: string; label?: string } = {}): Decal {
+  const r = rng(o.seed ?? 1), p = pal(o.palette);
+  const v = o.variant ?? r.pick(["key", "toggle", "led", "plus", "pill", "dots", "knob", "socket"] as const);
+  const hues = p.accents.filter(saturated);
+  const c = o.color ?? (hues.length ? r.pick(hues) : p.fg), ink = onColor(c), house = p.muted, deep = mix(p.muted, "#000000", 0.55);
+  const mk = (w: number, h: number, body: string): Decal => ({ kind: "button", w, h, body });
+  const circ = (cx: number, cy: number, rr: number, fill: string, extra = "") => `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(rr)}" fill="${fill}"${extra ? " " + extra : ""}/>`;
+  const plus = (cx: number, cy: number, s: number, fill: string) => rect(cx - s * 0.13, cy - s / 2, s * 0.26, s, fill) + rect(cx - s / 2, cy - s * 0.13, s, s * 0.26, fill);
+  switch (v) {
+    case "key": {
+      const t = o.label ?? r.pick(["A", "T", "4", "6", "B", "+", "0"]);
+      return mk(100, 100, rect(0, 0, 100, 100, c, `rx="18"`) + (t === "+" ? plus(50, 50, 52, ink) : text(50, 74, t, { size: 66, fill: ink, font: "display", weight: 700, anchor: "middle" })));
+    }
+    case "toggle": {
+      const on = r.chance(0.5), mark = onColor(house);
+      return mk(180, 80, rect(0, 0, 180, 80, house, `rx="40"`) + circ(on ? 140 : 40, 40, 30, c) + (on ? rect(30, 30, 20, 20, mark, `rx="3"`) : rect(136, 26, 8, 28, mark, `rx="3"`)));
+    }
+    case "led": {
+      const k = r.int(3, 5), lit = r.int(0, k - 1), W = 44 + (k - 1) * 36;
+      let b = rect(0, 0, W, 44, deep, `rx="22"`);
+      for (let i = 0; i < k; i++) {
+        const cx = 22 + i * 36;
+        b += i === lit || r.chance(0.2) ? circ(cx, 22, 16, c, `opacity="0.3"`) + circ(cx, 22, 10, c) : circ(cx, 22, 10, house);
+      }
+      return mk(W, 64, b + text(4, 62, o.label ?? r.pick(["PWR", "SYS", "LNK", "RDY", "A1"]), { size: 13, fill: house, weight: 700 }));
+    }
+    case "plus": {
+      const tall = r.chance(0.4), W = tall ? 70 : 124, H = tall ? 110 : 84;
+      return mk(W, H, rect(0, 0, W, H, c, `rx="${tall ? 12 : 42}"`) + plus(W / 2, H / 2, tall ? 40 : 46, ink));
+    }
+    case "pill":
+      return mk(170, 70, rect(0, 0, 170, 70, c, `rx="35"`) + text(135, 51, o.label ?? str(r, L, 1), { size: 46, fill: ink, font: "display", weight: 700, anchor: "middle" }));
+    case "dots": {
+      const k = r.int(3, 5), fill = r.chance(0.5) ? house : c;
+      let b = "";
+      for (let i = 0; i < k; i++) b += circ(20 + i * 46, 20, 19, fill) + text(20 + i * 46, 27, String(i + 1), { size: 20, fill: onColor(fill), weight: 700, anchor: "middle" });
+      return mk(k * 46 - 6, 40, b);
+    }
+    case "knob":
+      return mk(100, 100, circ(50, 50, 48, house) + circ(50, 50, 34, deep) + rect(47, 18, 6, 26, c, `rx="3"`));
+    case "socket": {
+      // Thick rounded frame around nested squares (the orange frame on the SMG sheet).
+      const c2 = hues.length > 1 ? r.pick(hues.filter(h => h !== c)) : p.muted;
+      const l1 = hues.length ? mix(c, "#FFFFFF", 0.78) : p.bg, l2 = hues.length ? mix(c2, "#FFFFFF", 0.5) : p.muted;
+      return mk(150, 132, rect(6, 6, 138, 120, "none", `stroke="${c}" stroke-width="12" rx="22"`) + rect(42, 33, 66, 66, l1) + rect(49, 40, 52, 52, l2) + rect(59, 50, 32, 32, p.fg, `rx="3"`));
+    }
+  }
+}
+
+/** Cluster of colored tiles carrying a code, a pixel mark, a ring or a small reading (medic-sheet style). */
+export function tileGroup(o: Base & { cols?: number; rows?: number; cell?: number } = {}): Decal {
+  const r = rng(o.seed ?? 1), p = pal(o.palette), cols = o.cols ?? 2, rows = o.rows ?? r.int(2, 3), c = o.cell ?? 120;
+  const hues = p.accents.filter(saturated), fills = hues.length ? hues : [p.fg, p.muted];
+  let b = "", last = "";
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if ((i || j) && !r.chance(0.8)) continue;
+    let fill = r.pick(fills);
+    if (fill === last && fills.length > 1) fill = fills[(fills.indexOf(fill) + 1) % fills.length];
+    last = fill;
+    const x = i * c, y = j * c, ink = onColor(fill), what = r.pick(["code", "mark", "ring", "num", "none"] as const);
+    b += rect(x, y, c, c, fill);
+    if (what === "code") b += rect(x + c * 0.1, y + c * 0.06, c * 0.3, c * 0.05, ink) + text(x + c * 0.08, y + c * 0.9, `${str(r, L, 1)}${str(r, "nqrbe", 1)}`, { size: c * 0.66, fill: ink, font: "grotesk", weight: 500, width: c * 0.8 });
+    if (what === "mark") b += place(blockMark({ seed: r.int(1, 1e6), grid: 5, color: ink }), x + c * 0.2, y + c * 0.2, c * 0.6, c * 0.6);
+    if (what === "ring") b += place(icon({ name: r.pick(["ring", "peanut", "circle", "pill"] as const), color: ink, ground: fill }), x + c * 0.12, y + c * 0.12, c * 0.76, c * 0.76);
+    if (what === "num") b += text(x + c * 0.92, y + c * 0.9, (r.next() * 99).toFixed(1), { size: c * 0.24, fill: ink, font: "grotesk", weight: 500, anchor: "end" });
+  }
+  return { kind: "tileGroup", w: cols * c, h: rows * c, body: b };
 }
 
 /* ============================== text variants ============================== */
@@ -682,6 +857,7 @@ export const KINDS = {
   pixelText: asMaker((o: Base & { text?: string }) => pixelText({ ...o, text: o.text ?? corpName(rng(o.seed ?? 1)) })),
   segmentText: asMaker((o: Base & { text?: string }) => segmentText({ ...o, text: o.text ?? String(rng(o.seed ?? 1).int(10, 99999)) })),
   icon: asMaker(icon), codeBox: asMaker(codeBox), tape: asMaker(tape),
+  thinCode: asMaker(thinCode), bigType: asMaker(bigType), button: asMaker(button), tileGroup: asMaker(tileGroup),
 } as const;
 export type DecalKind = keyof typeof KINDS;
 
@@ -701,52 +877,316 @@ const SHEET_FIT: Partial<Record<DecalKind, { k: number; opts?: (r: Rng) => Recor
   repeatBand: { k: 0.42, opts: r => ({ w: r.int(360, 760), h: r.int(36, 56) }) },
   pillTag: { k: 0.45 }, stackBadge: { k: 0.8 }, lockup: { k: 1.25 }, pixelText: { k: 0.4 }, segmentText: { k: 0.75 },
   icon: { k: 0.62 }, codeBox: { k: 0.7 }, tape: { k: 0.4, opts: r => ({ w: r.int(220, 420) }) },
+  thinCode: { k: 0.45 }, bigType: { k: 1 }, button: { k: 0.5 }, tileGroup: { k: 1.1 },
 };
 /** How often a kind is drawn again after every kind has appeared once. */
 const SHEET_WEIGHT: Partial<Record<DecalKind, number>> = {
   icon: 6, glyphDisc: 3, reticle: 2, blockMark: 2, codeBox: 2, pixelArrow: 1.5, chevrons: 1.5, barcode: 1.5, serialBlock: 1.5,
   segmentText: 1, pixelText: 1, dotMatrix: 1, stackBadge: 1, pillTag: 0.8, stripes: 0.8, checker: 0.6, globe: 0.4, dither: 0.6,
   repeatBand: 0.6, warningLabel: 0.5, tape: 0.4, bracketFrame: 0.5, ruler: 0.4, specTable: 0.2, lockup: 0,
+  thinCode: 1.5, button: 1.5, bigType: 0.6, tileGroup: 0.3,
 };
-const weighted = (r: Rng, kinds: DecalKind[]) => {
-  const ws = kinds.map(k => SHEET_WEIGHT[k] ?? 1), total = ws.reduce((a, b) => a + b, 0);
+const weighted = (r: Rng, kinds: DecalKind[], table = SHEET_WEIGHT) => {
+  const ws = kinds.map(k => table[k] ?? 1), total = ws.reduce((a, b) => a + b, 0);
   let t = r.next() * total;
   for (let i = 0; i < kinds.length; i++) { t -= ws[i]; if (t <= 0) return kinds[i]; }
   return kinds[kinds.length - 1];
 };
-const TINTABLE: DecalKind[] = ["icon", "codeBox", "tape", "pixelArrow", "chevrons", "barcode", "reticle", "dotMatrix", "blockMark", "segmentText", "pixelText", "stripes", "checker"];
+const TINTABLE: DecalKind[] = ["icon", "codeBox", "tape", "pixelArrow", "chevrons", "barcode", "reticle", "dotMatrix", "blockMark", "segmentText", "pixelText", "stripes", "checker", "thinCode", "bigType", "button"];
 
-/** Dense decal sheet (flow layout) with optional acid-lime footer bar. */
-export function sheet(o: Base & { w?: number; count?: number; rowH?: number; kinds?: DecalKind[]; footer?: false | { left?: string; right?: string; color?: string; ink?: string } } = {}): Decal {
-  const r = rng(o.seed ?? 1), p = pal(o.palette), W = o.w ?? 1600, rowH = o.rowH ?? 130, gap = 30, pad = 40;
+/* ---------- layout helpers ---------- */
+
+const shuffle = <T>(r: Rng, arr: readonly T[]) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = r.int(0, i); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+};
+/** Accents that stay legible on the palette background (tints for marks need less contrast than text). */
+const readable = (p: Palette, min: number) => p.accents.filter(c => contrast(c, p.bg) >= min);
+/** Fits a decal into a box keeping its aspect; "start" pins it left, otherwise centered. */
+function fit(d: Decal, x: number, y: number, w: number, h: number, align: "start" | "middle" = "middle") {
+  const k = Math.min(w / d.w, h / d.h), dw = d.w * k, dh = d.h * k;
+  return place(d, align === "start" ? x : x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+/** The same decal twice, side by side (paired arrows, paired crosshairs). */
+const pair = (d: Decal, gap = 0.18): Decal => ({ ...d, w: d.w * (2 + gap), body: d.body + `<g transform="translate(${n(d.w * (1 + gap))} 0)">${d.body}</g>` });
+/** Cell occupancy for the grid layouts. */
+function cells(cols: number, rows: number) {
+  const used = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false));
+  const free = (c: number, r0: number, w: number, h: number) => {
+    if (c + w > cols || r0 + h > rows) return false;
+    for (let j = r0; j < r0 + h; j++) for (let i = c; i < c + w; i++) if (used[j][i]) return false;
+    return true;
+  };
+  return {
+    used,
+    spots(w: number, h: number) {
+      const s: [number, number][] = [];
+      for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) if (free(i, j, w, h)) s.push([i, j]);
+      return s;
+    },
+    take(c: number, r0: number, w: number, h: number) { for (let j = r0; j < r0 + h; j++) for (let i = c; i < c + w; i++) used[j][i] = true; },
+  };
+}
+/** One full-width line of condensed pseudo-data (the long code rows on atlases and band sheets). */
+function codeLine(r: Rng, w: number, size: number, col: string) {
+  let s = "";
+  while (textW(s, size) < w * 1.4) s += r.pick([str(r, AN, r.int(2, 6)), String(r.int(1, 999)), str(r, L, r.int(1, 4)), `${r.int(10, 99)}${str(r, L, 1)}`]) + " ";
+  return text(0, size * 0.8, s.trim(), { size, fill: col, width: w });
+}
+
+/* ---------- layouts ---------- */
+
+export const SHEET_LAYOUTS = ["flow", "prop", "atlas", "bands"] as const;
+export type SheetLayout = typeof SHEET_LAYOUTS[number];
+export interface SheetFooter { left?: string; right?: string; color?: string; ink?: string; label?: string }
+export interface SheetOpts extends Base {
+  /** flow: dense rows (default) · prop: a dozen big elements on a loose 12-column grid · atlas: packed icon grid + type specimen · bands: full-width seal / tape strips */
+  layout?: SheetLayout;
+  w?: number;
+  /** flow: decals (60) · prop: elements (14) · bands: strips (12). Atlas fills its grid instead. */
+  count?: number;
+  /** flow: row height in px. */
+  rowH?: number;
+  /** prop: grid rows (7) · atlas: grid rows (14). */
+  rows?: number;
+  /** atlas: cell size in px (92). */
+  cell?: number;
+  /** Restricts which kinds may appear (flow, prop, atlas). */
+  kinds?: DecalKind[];
+  /** Acid-lime bar along the bottom. On by default for flow and prop, off for atlas and bands. */
+  footer?: false | SheetFooter;
+}
+
+function flowSheet(o: SheetOpts, r: Rng): Decal {
+  const p = pal(o.palette), W = o.w ?? 1600, rowH = o.rowH ?? 130, gap = 30, pad = 40;
   const kinds = o.kinds ?? (Object.keys(KINDS) as DecalKind[]);
-  const count = o.count ?? 60;
-  const order = [...kinds].sort(() => r.next() - 0.5);
+  const count = o.count ?? 60, order = shuffle(r, kinds), tints = readable(p, 1.6);
   let x = pad, y = pad, b = "";
   for (let i = 0; i < count; i++) {
     const kind = i < order.length ? order[i] : weighted(r, kinds);
-    const fit = SHEET_FIT[kind] ?? { k: 0.8 };
-    const tint = TINTABLE.includes(kind) && p.accents.length > 2 && r.chance(0.5) ? { color: r.pick(p.accents) } : {};
-    const d = make(kind, { seed: r.int(1, 1e9), palette: o.palette, ...(fit.opts?.(r) ?? {}), ...tint });
+    const sf = SHEET_FIT[kind] ?? { k: 0.8 };
+    const tint = TINTABLE.includes(kind) && p.accents.length > 2 && tints.length && r.chance(0.5) ? { color: r.pick(tints) } : {};
+    const d = make(kind, { seed: r.int(1, 1e9), palette: o.palette, ...(sf.opts?.(r) ?? {}), ...tint });
     const ar = d.w / d.h;
-    let h = rowH * fit.k, w = h * ar;
+    let h = rowH * sf.k, w = h * ar;
     const maxW = (W - pad * 2) * (kind === "lockup" ? 0.75 : 0.55);
     if (w > maxW) { w = maxW; h = w / ar; }
     if (x + w > W - pad) { x = pad; y += rowH + gap; }
     b += place(d, x, y + (rowH - h) / 2, w, h);
     x += w + gap;
   }
-  let H = y + rowH + pad;
-  if (o.footer !== false) {
-    const f = o.footer ?? {}, fh = 48, fc = f.color ?? "#C0FE0F", ink = f.ink ?? "#0A0A0A";
-    b += rect(0, H, W, fh, fc);
-    b += text(24, H + 32, f.left ?? `${corpName(r, true)}`, { size: 18, fill: ink, font: "wide", weight: 700 });
-    const bc = barcode({ seed: r.int(1, 1e6), height: 18, color: ink });
-    b += place(bc, W - 360, H + 15, bc.w * 1.2, 18);
-    b += text(W - 24, H + 32, f.right ?? `× ${r.int(1000, 9999)}  ${codes.short(r)}`, { size: 18, fill: ink, font: "mono", weight: 700, anchor: "end" });
-    H += fh;
+  return { kind: "sheet", w: W, h: y + rowH + pad, body: b };
+}
+
+type Role = "hero" | "mid" | "small";
+const PROP_POOL: Record<Role, DecalKind[]> = {
+  hero: ["bigType", "bigType", "pixelArrow", "glyphDisc", "blockMark", "tileGroup", "button", "codeBox", "checker", "reticle"],
+  mid: ["thinCode", "thinCode", "thinCode", "segmentText", "chevrons", "reticle", "icon", "button", "codeBox", "stripes", "bigType", "stackBadge"],
+  small: ["thinCode", "thinCode", "icon", "reticle", "button", "chevrons"],
+};
+/** Candidate spans (columns × rows) per role; the one closest to the decal's aspect wins. */
+const PROP_SPANS: Record<Role, [number, number][]> = {
+  hero: [[3, 3], [4, 3], [3, 2], [4, 2], [5, 2], [2, 3], [5, 3]],
+  mid: [[2, 2], [3, 1], [4, 1], [2, 1], [1, 2], [3, 2]],
+  small: [[1, 1], [2, 1]],
+};
+const PROP_NAMES = ["MEDIC", "SMG", "RIFLE", "CARGO", "DRONE", "VALVE", "CANISTER", "HELMET", "CRATE", "SCANNER"];
+function propOpts(kind: DecalKind, role: Role, r: Rng): Record<string, unknown> {
+  switch (kind) {
+    case "button": return { variant: role === "hero" ? "socket" : role === "mid" ? r.pick(["key", "plus", "pill", "toggle"]) : r.pick(["led", "dots", "key"]) };
+    case "reticle": return { variant: role === "small" ? r.pick(["pip", "plus", "register"]) : r.pick(["plus", "crossCircle", "tickRing", "pip"]) };
+    case "codeBox": return { variant: role === "hero" ? r.pick(["big", "stack"]) : r.pick(["split", "big"]) };
+    case "checker": return { cols: r.int(3, 5), rows: r.int(2, 4), cell: 40 };
+    case "blockMark": return { grid: r.int(4, 5) };
+    case "thinCode": return role === "small" ? { variant: r.pick(["line", "stack"]) } : {};
+    case "chevrons": return role === "small" ? { count: 3 } : {};
+    case "bigType": return { variant: role === "mid" ? r.pick(["numeral", "italic"]) : r.pick(["stroke", "stroke", "numeral", "outline"]) };
+    case "stripes": return { w: 300, h: 90, band: 16 };
+    default: return {};
   }
+}
+
+/** Prop sheet (SMG / medic pages): few large elements, strong scale contrast, lots of air. */
+function propSheet(o: SheetOpts, r: Rng): Decal {
+  const p = pal(o.palette), W = o.w ?? 1920, cols = 12, rows = o.rows ?? 7, pad = Math.round(W / 30);
+  const cell = (W - pad * 2) / cols, grid = cells(cols, rows);
+  const total = o.count ?? 14, heroes = Math.max(2, Math.round(total * 0.2)), mids = Math.round(total * 0.38);
+  const plan: Role[] = [...Array<Role>(heroes).fill("hero"), ...Array<Role>(mids).fill("mid"), ...Array<Role>(Math.max(0, total - heroes - mids)).fill("small")];
+  const tints = readable(p, 1.6), inks = readable(p, 2.6), seen = new Set<DecalKind>();
+  let b = "";
+  for (const role of plan) {
+    const pool = PROP_POOL[role].filter(k => !o.kinds || o.kinds.includes(k));
+    if (!pool.length) continue;
+    const fresh = pool.filter(k => !seen.has(k)), kind = r.pick(fresh.length ? fresh : pool);
+    seen.add(kind);
+    const opts: Record<string, unknown> = { seed: r.int(1, 1e9), palette: o.palette, ...propOpts(kind, role, r) };
+    if (p.accents.length > 2) {
+      if (kind === "thinCode") { if (inks.length && r.chance(0.35)) opts.color = r.pick(inks); }
+      else if (TINTABLE.includes(kind) && tints.length && r.chance(0.35)) opts.color = r.pick(tints);
+    }
+    let d = make(kind, opts);
+    if ((kind === "pixelArrow" && role === "hero" && r.chance(0.6)) || (kind === "reticle" && role === "small" && r.chance(0.5))) d = pair(d);
+    const ar = d.w / d.h;
+    const spans = PROP_SPANS[role].map(s => ({ s, k: Math.abs(Math.log(s[0] / s[1] / ar)) + r.next() * 0.3 })).sort((a, z) => a.k - z.k);
+    for (const { s: [cw, ch] } of spans) {
+      const spots = grid.spots(cw, ch);
+      if (!spots.length) continue;
+      const [ci, rj] = r.pick(spots), gut = cell * (role === "hero" ? 0.08 : 0.12);
+      grid.take(ci, rj, cw, ch);
+      b += fit(d, pad + ci * cell + gut, pad + rj * cell + gut, cw * cell - gut * 2, ch * cell - gut * 2, kind === "thinCode" ? "start" : "middle");
+      break;
+    }
+  }
+  const H = pad * 2 + rows * cell, label = (o.footer ? o.footer.label : undefined) ?? `${r.pick(PROP_NAMES)} DECALS_PG_${r.int(1, 9)}`;
+  if (o.footer !== false) b += text(pad * 0.4, H - pad * 0.3, label, { size: Math.max(11, W / 110), fill: p.muted, font: "grotesk", weight: 400 });
   return { kind: "sheet", w: W, h: H, body: b };
+}
+
+/** Multi-cell blocks scattered first on an atlas: [kind, columns, rows, options]. */
+const ATLAS_BLOCKS: [DecalKind, number, number, Record<string, unknown>?][] = [
+  ["specTable", 4, 2], ["serialBlock", 3, 1], ["serialBlock", 2, 1, { lines: 3 }], ["warningLabel", 4, 1], ["barcode", 2, 1, { digits: true }],
+  ["thinCode", 3, 1, { variant: "line" }], ["thinCode", 2, 1, { variant: "overbar" }], ["segmentText", 3, 1], ["dither", 3, 2], ["stripes", 3, 1],
+  ["dotMatrix", 2, 1], ["checker", 2, 1, { cols: 8, rows: 4 }], ["tileGroup", 2, 2], ["button", 2, 1, { variant: "toggle" }], ["button", 2, 1, { variant: "led" }],
+  ["bigType", 2, 2, { variant: "stroke" }], ["chevrons", 2, 1], ["pillTag", 3, 1], ["repeatBand", 4, 1, { w: 480, h: 48 }],
+];
+/** Single-cell fill frequencies on an atlas. */
+const ATLAS_SMALL: Partial<Record<DecalKind, number>> = {
+  icon: 8, button: 3, glyphDisc: 2, reticle: 2, blockMark: 2, codeBox: 1.5, pixelArrow: 1, chevrons: 1, stackBadge: 1, bigType: 0.6, thinCode: 0.5, dotMatrix: 0.6,
+};
+
+/** Symbol atlas (corp atlas / navy prop atlas): a packed grid of small marks, a code line and a type specimen. */
+function atlasSheet(o: SheetOpts, r: Rng): Decal {
+  const p = pal(o.palette), W = o.w ?? 2048, pad = 32, cell = o.cell ?? 92, cols = Math.floor((W - pad * 2) / cell), rows = o.rows ?? 14;
+  const ox = (W - cols * cell) / 2, grid = cells(cols, rows), tints = readable(p, 1.6), colorful = p.accents.length > 2;
+  const allow = (k: DecalKind) => !o.kinds || o.kinds.includes(k);
+  const opts = (kind: DecalKind, extra: Record<string, unknown> = {}) => {
+    const out: Record<string, unknown> = { seed: r.int(1, 1e9), palette: o.palette, ...extra };
+    if (colorful && TINTABLE.includes(kind) && tints.length && r.chance(0.55)) out.color = r.pick(tints);
+    return out;
+  };
+  let b = "";
+  const put = (d: Decal, ci: number, rj: number, cw: number, ch: number) => {
+    const gut = cell * 0.14;
+    b += fit(d, ox + ci * cell + gut, pad + rj * cell + gut, cw * cell - gut * 2, ch * cell - gut * 2);
+  };
+  for (const [kind, cw, ch, extra] of shuffle(r, ATLAS_BLOCKS.filter(([k]) => allow(k))).slice(0, Math.round(rows * 0.9))) {
+    const spots = grid.spots(cw, ch);
+    if (!spots.length) continue;
+    const [ci, rj] = r.pick(spots);
+    grid.take(ci, rj, cw, ch);
+    put(make(kind, opts(kind, extra)), ci, rj, cw, ch);
+  }
+  const smalls = (Object.keys(ATLAS_SMALL) as DecalKind[]).filter(allow);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if (grid.used[j][i] || !smalls.length || !r.chance(0.86)) continue;
+    const kind = weighted(r, smalls, ATLAS_SMALL);
+    put(make(kind, opts(kind, kind === "bigType" ? { variant: "numeral" } : kind === "thinCode" ? { variant: "stack" } : {})), i, j, 1, 1);
+  }
+  const lw = W - pad * 2;
+  let y = pad + rows * cell + cell * 0.3;
+  b += `<g transform="translate(${pad} ${n(y)})">${codeLine(r, lw, cell * 0.32, p.fg)}</g>`;
+  y += cell * 0.5;
+  b += text(pad, y + cell * 0.75, "ABCDEFGHIJKLMNOPQRSTUVWXYZØ123456789", { size: cell * 0.9, fill: p.fg, font: "mono", weight: 400, width: lw });
+  return { kind: "sheet", w: W, h: y + cell + pad, body: b };
+}
+
+/** Seal-band sheet: stacked full-width word bands, stamp bars, pills, tape strokes, combs and code rows. */
+function bandsSheet(o: SheetOpts, r: Rng): Decal {
+  const p = pal(o.palette), W = o.w ?? 2048, hues = p.accents.filter(saturated);
+  const hue = (i: number) => (hues.length ? hues[i % hues.length] : i % 2 ? p.muted : p.fg);
+  const ground = mix(p.bg, p.fg, 0.2), light = mix(p.fg, p.bg, 0.25), word = () => r.pick(WORDS), seed = () => r.int(1, 1e9);
+  const colorBand = (pill: boolean) => {
+    const h = pill ? 104 : 112, fill = mix(hue(1), "#000000", 0.18);
+    const ink = hues.length > 2 && contrast(hue(2), fill) >= 1.15 ? hue(2) : onColor(fill);
+    return { h, body: repeatBand({ word: word(), sep: "-", w: W, h, fill, color: ink, sepColor: hue(0), weight: 600, pill }).body };
+  };
+  const bands: Record<string, () => { h: number; body: string }> = {
+    thin: () => ({ h: 96, body: repeatBand({ word: word(), sep: "  ", w: W, h: 96, fill: ground, color: light, weight: 400 }).body + rect(0, 88, W, 8, mix(ground, p.fg, 0.12)) }),
+    bold: () => ({ h: 128, body: repeatBand({ word: word(), sep: "  ", w: W, h: 128, fill: ground, color: p.fg, weight: 600 }).body }),
+    here: () => ({ h: 92, body: repeatBand({ word: `${word()} HERE`, sep: "    ", mark: true, w: W, h: 92, fill: ground, color: p.fg, weight: 600 }).body }),
+    dash: () => ({ h: 132, body: repeatBand({ word: word(), sep: "-", w: W, h: 132, fill: ground, color: p.fg, weight: 700 }).body }),
+    color: () => colorBand(false),
+    pill: () => colorBand(true),
+    stamp: () => {
+      const h = 120, fill = hue(0);
+      return { h, body: rect(0, 0, W, h, fill) + text(24, h * 0.74, codes.stamp(r), { size: h * 0.6, fill: "none", font: "mono", weight: 700, extra: `stroke="${mix(fill, "#000000", 0.75)}" stroke-width="3"` }) };
+    },
+    pills: () => {
+      const k = 1.7, h = 64 * k;
+      const a = pillTag({ seed: seed(), palette: o.palette, end: "left", arrow: true, w: (W * 0.43) / k });
+      const c = pillTag({ seed: seed(), palette: o.palette, end: "right", arrow: false, w: (W * 0.45) / k });
+      return { h, body: place(a, W * 0.01, 0, a.w * k, h) + place(c, W * 0.53, 0, c.w * k, h) };
+    },
+    tapes: () => {
+      const h = 104, c = hue(0);
+      return { h, body: place(tape({ seed: seed(), w: W * 0.56, h, color: c }), W * 0.04, 0, W * 0.56, h) + place(tape({ seed: seed(), w: W * 0.3, h, color: c }), W * 0.66, 0, W * 0.3, h) };
+    },
+    comb: () => {
+      const k = 10, step = W / k, fill = mix(p.fg, p.bg, 0.1), bar = mix(p.bg, p.fg, 0.33);
+      let body = "";
+      for (let i = 0; i < k; i++) { const cx = step * (i + 0.5); body += rect(cx - 9, 0, 18, 30, fill) + rect(cx - 56, 30, 112, 34, fill); }
+      for (let x = step * 2.2; x < W - 40; x += step * 2.5) body += rect(x, 96, 16, 70, bar) + rect(x + 24, 96, 16, 70, bar);
+      return { h: 166, body };
+    },
+    bar: () => { const c = hue(5); return { h: 140, body: rect(0, 0, W, 140, mix(c, "#000000", 0.45)) + rect(0, 12, W, 116, c) }; },
+    code: () => ({ h: 76, body: codeLine(r, W, 64, light) }),
+    scatter: () => {
+      const h = 170, lx = W * 0.81, name = corpName(r, true), here = `▪${word()} HERE`;
+      let body = "";
+      for (let i = 0; i < 14; i++) body += `<circle cx="${r.int(10, Math.round(W * 0.48))}" cy="${r.int(20, h - 20)}" r="5" fill="${p.fg}"/>`;
+      for (let i = 0; i < 4; i++) body += text(r.int(60, Math.round(W * 0.45)), r.int(30, h - 20), `${str(r, "tinz", 1)}${str(r, "itnz", 1)} - ${r.int(1, 99)}`, { size: 20, fill: p.fg, font: "grotesk", weight: 400 });
+      body += rect(W * 0.505, 0, W * 0.29, h - 10, ground) + poly([[lx, 10], [lx + 40, 10], [lx, 50]], p.fg);
+      body += text(lx + 48, 30, name, { size: 20, fill: p.fg, weight: 700, width: Math.min(W - lx - 60, textW(name, 20)) });
+      body += text(lx + 48, 56, r.pick(["PODS", "UNITS", "CELLS", "LINES"]), { size: 20, fill: p.fg, weight: 700 });
+      body += text(lx + 20, 106, here, { size: 30, fill: p.fg, weight: 700, width: Math.min(W - lx - 30, textW(here, 30)) });
+      body += rect(lx, 116, W - lx - 10, 3, p.fg) + rect(lx, 140, W - lx - 10, 2, p.fg);
+      for (let x = lx; x < W - 10; x += 60) body += rect(x, 122, 2, 18, p.fg);
+      return { h, body };
+    },
+    barcodes: () => {
+      let body = "", x = 0;
+      while (x < W - 260) {
+        const bc = barcode({ seed: seed(), height: 35, color: p.fg });
+        body += place(bc, x, 0, bc.w * 1.6, 56) + text(x, 78, codes.serial(r), { size: 16, fill: light });
+        x += Math.max(bc.w * 1.6, 120) + r.int(60, 160);
+      }
+      return { h: 84, body };
+    },
+    arrows: () => {
+      const h = 48, c = mix(p.bg, p.fg, 0.5), seg = W / 3.4;
+      let body = "", x = 0;
+      while (x < W) {
+        body += poly([[x, 0], [x + seg, 0], [x + seg + h * 0.5, h / 2], [x + seg, h], [x, h]], c);
+        x += seg + h * 0.8;
+        for (let k = 0; k < 3 && x < W; k++, x += h * 0.75) body += poly([[x, 0], [x + h * 0.25, 0], [x + h * 0.75, h / 2], [x + h * 0.25, h], [x, h], [x + h * 0.5, h / 2]], c);
+        x += h * 0.4;
+      }
+      return { h, body };
+    },
+  };
+  const top = shuffle(r, ["thin", "bold", "here", "dash"]).slice(0, r.int(3, 4));
+  const middle = shuffle(r, ["color", "pill", "stamp", "pills", "tapes", "comb", "bar", "code", "scatter", "barcodes"]).slice(0, Math.max(0, (o.count ?? 12) - top.length - 1));
+  let y = 0, b = "";
+  const add = (key: string, gap: number) => { const band = bands[key](); b += `<g transform="translate(0 ${n(y)})">${band.body}</g>`; y += band.h + gap; };
+  top.forEach((k, i) => add(k, i === top.length - 1 ? 32 : 0));
+  middle.forEach(k => add(k, r.int(24, 44)));
+  add("arrows", 20);
+  return { kind: "sheet", w: W, h: y, body: b };
+}
+
+/** A whole decal sheet. `layout` picks the composition (see SheetOpts); the footer bar is added here for every layout. */
+export function sheet(o: SheetOpts = {}): Decal {
+  const r = rng(o.seed ?? 1), layout = o.layout ?? "flow";
+  const d = layout === "prop" ? propSheet(o, r) : layout === "atlas" ? atlasSheet(o, r) : layout === "bands" ? bandsSheet(o, r) : flowSheet(o, r);
+  if (o.footer === false || (o.footer === undefined && (layout === "atlas" || layout === "bands"))) return d;
+  const f: SheetFooter = o.footer || {}, W = d.w, H = d.h, k = Math.max(1, W / 1600), fh = 48 * k, fc = f.color ?? "#C0FE0F", ink = f.ink ?? "#0A0A0A";
+  let b = d.body + rect(0, H, W, fh, fc);
+  b += text(24 * k, H + 32 * k, f.left ?? corpName(r, true), { size: 18 * k, fill: ink, font: "wide", weight: 700 });
+  const bc = barcode({ seed: r.int(1, 1e6), height: 18, color: ink });
+  b += place(bc, W - 360 * k, H + 15 * k, bc.w * k, 18 * k);
+  b += text(W - 24 * k, H + 32 * k, f.right ?? `× ${r.int(1000, 9999)}  ${codes.short(r)}`, { size: 18 * k, fill: ink, font: "mono", weight: 700, anchor: "end" });
+  return { kind: "sheet", w: W, h: H + fh, body: b };
 }
 
 /** One labeled example of every kind and every icon: a visual index of the kit. */

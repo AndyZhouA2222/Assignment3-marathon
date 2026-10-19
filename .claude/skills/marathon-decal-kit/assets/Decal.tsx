@@ -1,6 +1,6 @@
 // React wrappers for the decal generator.
 import { useMemo, type CSSProperties } from "react";
-import { make, toSvg, textVariant, sheet, type DecalKind, type PaletteInput, type TextVariant } from "./decals.ts";
+import { make, toSvg, textVariant, sheet, type DecalKind, type PaletteInput, type SheetLayout, type TextVariant } from "./decals.ts";
 
 type Common = { seed?: number | string; palette?: PaletteInput; background?: boolean | string; className?: string; style?: CSSProperties; title?: string };
 
@@ -28,9 +28,9 @@ export function DecalText({ text, variant, size, color, seed, palette, backgroun
   return <Svg svg={svg} className={className} style={style} title={text} />;
 }
 
-/** A full decal sheet, scaled to its container width. */
-export function DecalSheet({ seed, palette = "mono", count, className, style }: Common & { count?: number }) {
-  const svg = useMemo(() => toSvg(sheet({ seed, palette, count }), { background: true, palette }).replace(/ width="[^"]+" height="[^"]+"/, ' width="100%"'),
-    [seed, palette, count]);
+/** A full decal sheet, scaled to its container width. `layout`: flow | prop | atlas | bands. */
+export function DecalSheet({ seed, palette = "mono", layout, count, className, style }: Common & { layout?: SheetLayout; count?: number }) {
+  const svg = useMemo(() => toSvg(sheet({ seed, palette, layout, count }), { background: true, palette }).replace(/ width="[^"]+" height="[^"]+"/, ' width="100%"'),
+    [seed, palette, layout, count]);
   return <Svg svg={svg} className={className} style={{ width: "100%", ...style }} title="Decal sheet" />;
 }

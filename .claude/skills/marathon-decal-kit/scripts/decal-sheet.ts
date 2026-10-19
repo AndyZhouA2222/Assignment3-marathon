@@ -1,10 +1,11 @@
 // CLI: generate Marathon-style decals as SVG (optionally PNG).
 // node scripts/decal-sheet.ts --mode sheet --palette mono --seed 7 --out out/sheet.svg [--png]
+// node scripts/decal-sheet.ts --mode sheet --layout prop --palette lab --seed 4 --out out/prop.svg --png
 // node scripts/decal-sheet.ts --mode kind --kind glyphDisc --count 12 --seed 3 --out out/glyphs.svg
 // node scripts/decal-sheet.ts --mode variants --text "SEAL 014" --palette ink --out out/variants.svg
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { sheet, catalog, variantSheet, make, toSvg, KINDS, PALETTES, place, rng, type Decal, type DecalKind, type PaletteName } from "../assets/decals.ts";
+import { sheet, catalog, variantSheet, make, toSvg, KINDS, PALETTES, SHEET_LAYOUTS, place, rng, type Decal, type DecalKind, type PaletteName, type SheetLayout } from "../assets/decals.ts";
 
 const args = new Map<string, string>();
 const argv = process.argv.slice(2);
@@ -17,16 +18,20 @@ const get = (k: string, d: string) => args.get(k) ?? d;
 
 if (args.has("help")) {
   console.log(`modes: sheet | kind | variants | catalog
+layouts (mode sheet): ${SHEET_LAYOUTS.join(" | ")}
 kinds: ${Object.keys(KINDS).join(", ")}
 palettes: ${Object.keys(PALETTES).join(", ")}
-flags: --mode --kind --palette --seed --count --text --w --out --png --chromium <path>`);
+flags: --mode --layout --kind --palette --seed --count --rows --cell --text --w --no-footer --out --png --chromium <path> --no-fonts`);
   process.exit(0);
 }
 
 const mode = get("mode", "sheet");
 const palette = get("palette", "mono") as PaletteName;
 const seed = get("seed", "1");
-const out = get("out", `out/${mode}-${palette}-${seed}.svg`);
+const layout = get("layout", "flow") as SheetLayout;
+if (!SHEET_LAYOUTS.includes(layout)) throw new Error(`unknown layout ${layout}`);
+const out = get("out", `out/${mode === "sheet" ? `${layout}-` : ""}${mode}-${palette}-${seed}.svg`);
+const num = (k: string) => (args.has(k) ? +get(k, "0") : undefined);
 
 let d: Decal;
 if (mode === "catalog") {
@@ -44,7 +49,7 @@ if (mode === "catalog") {
   }
   d = { kind: "grid", w: cols * cell, h: Math.ceil(count / cols) * cell, body };
 } else {
-  d = sheet({ seed, palette, w: +get("w", "1600"), count: +get("count", "60") });
+  d = sheet({ seed, palette, layout, w: num("w"), count: num("count"), rows: num("rows"), cell: num("cell"), ...(args.has("no-footer") ? { footer: false as const } : {}) });
 }
 
 const svg = toSvg(d, { background: true, palette, padding: mode === "sheet" ? 0 : 32, embedFonts: !args.has("no-fonts") });
