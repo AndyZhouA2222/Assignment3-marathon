@@ -1,0 +1,21 @@
+{
+  "name": "marathon-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "decals": "node .claude/skills/marathon-decal-kit/scripts/decal-sheet.ts",
+    "demos": "node tools/build-demos.mjs",
+    "shots": "node tools/screenshot.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "esbuild": "0.24.0",
+    "playwright-core": "1.48.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.6.3"
+  }
+}

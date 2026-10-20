@@ -1,11 +1,13 @@
 ---
 name: marathon-ui-style
-description: Build any UI (web page, app screen, dashboard, React components) in the visual style of Bungie's Marathon (2026) site: graphic-realism, acid lime on black/bone, wide techno type, mono data labels.
+description: Build any UI (web page, app screen, dashboard, game lobby, vault, HUD, React components) in the visual style of Bungie's Marathon (2026): graphic realism, acid lime on black/bone, wide techno type, mono data labels, pixel glyphs. Separate from the ARC Raiders style.
 ---
 
 # Marathon UI Style（马拉松风格 UI 规范）
 
-参考来源：marathonthegame.com 首页结构、Fonts In Use 对 Marathon (2026) 字体的记录、美术总监访谈（"graphic realism"，受 The Designers Republic、Wipeout、Ghost in the Shell、MGS2 影响）、社区整理的品牌色。官方 CSS 未能直接读取，色值为近似值，用于风格复刻而非品牌官方规范。
+参考来源：marathonthegame.com 首页结构、Fonts In Use 对 Marathon (2026) 字体和游戏内界面的记录、美术总监访谈（"graphic realism"，受 The Designers Republic、Wipeout、Ghost in the Shell、MGS2 影响）、上线后到第二赛季的界面改版报道、社区整理的品牌色。官方 CSS 未能直接读取，色值为近似值，用于风格复刻而非品牌官方规范。完整调研（含出处和可信度标注）见 `references/research.md`。
+
+贴花、符号、文字变体用配套的 `marathon-decal-kit` skill 生成（参考图也在那里）。网页 / 官网风格见第 1–11 节，游戏内界面（大厅、仓库、HUD、传送、Codex、结算）见第 12 节。ARC Raiders 风格是另一个独立 skill（`arc-raiders-ui-style`），两者不要混用。
 
 ## 1. 风格内核
 - **Graphic realism**：极简、解构的平面语言 + 可信的工业功能感。像一份军工/企业的技术文档被做成了时装海报。
@@ -29,6 +31,11 @@ description: Build any UI (web page, app screen, dashboard, React components) in
   --mt-magenta: #EA027E;    /* 警示/稀有/赛季 */
   --mt-ultra: #3601FB;      /* 电光蓝，加载/地图/全屏色块 */
   --mt-orange: #FF5500;     /* 危险/倒计时/撤离 */
+  --mt-acid-hi: #E5FF45; --mt-cyan: #01FFFF; --mt-red: #FF0D1A; /* 红：敌对、阵亡 */ --mt-steel: #29324F;
+  /* 稀有度（名称来自游戏，色值近似） */
+  --mt-r-standard: #9A9A9A; --mt-r-enhanced: #4FD34A; --mt-r-deluxe: #2F8BFF; --mt-r-superior: #A646FF; --mt-r-prestige: #F2B705;
+  /* Codex 绿色 CRT 卡 */
+  --mt-crt-bg: #0C1A0E; --mt-crt-fg: #9CFF7A; --mt-font-crt: "VT323", "Silkscreen", monospace;
 
   /* 字体：先找本机原版（见第 3 节 @font-face 别名），没有再用免费替代 */
   --mt-font-display: "MT Display", "Chakra Petch", "Michroma", sans-serif;
@@ -55,7 +62,7 @@ description: Build any UI (web page, app screen, dashboard, React components) in
   --mt-ease: cubic-bezier(.2,.8,0,1);
 }
 ```
-Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..800`、`JetBrains Mono:wght@400;500`、`Instrument Serif`。
+Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..800`、`JetBrains Mono:wght@400;500`、`Instrument Serif`，做 Codex 卡时再加 `VT323`。
 
 ## 3. 字体规则
 ### 本机原版字体自动优先（必须照做）
@@ -82,7 +89,9 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 - Eyebrow（标题上方小字）：mono，11px，全大写，`letter-spacing: 0.12em`，灰色或强调色，常带前缀如 `//`、`01 —`、`[ ]`。
 - 正文：mono 或 wide 的常规字重，15px，`line-height: 1.55`，最大宽度 56ch。正文可用大小写混排。
 - 数字一律等宽（`font-variant-numeric: tabular-nums`），日期写成 `10.19.2026`。
-- serif 只用于一两个词的戏剧化反差（如引言），每页最多一次。
+- serif 只用于一两个词的戏剧化反差（如引言），每页最多一次。IvyPresto 在游戏里只出现在局内界面（玩家说的"EVA 字体"感）。
+- 原版字体特征：KH Interference 只有大写、**等宽**、画在 45° 网格上，外角圆、内角方，灵感来自小票和低分辨率像素屏；Shapiro Wide 定制了带衬线的 I 和 1、弯腿 R；Fraktion Mono 有方形圆角和斜杠零。替代字体选形似的即可，但数字务必等宽。
+- 字体混排是这套风格的"灵魂"（官方 UI 设计师原话："不会去掉 SAUCE"），但每个面板必须只有一个最突出的元素，这是上线后玩家批评最多、第二赛季改得最多的地方。
 
 ## 4. 版式
 - 12 栏网格，外边距 桌面 48px / 移动 16px，栏间距 16px。网格可以用 1px 线显式画出来。
@@ -152,10 +161,10 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 
 ## 11. React 组件库
 用户要 React 界面时，直接用这套组件，不要重新手写样式。做法：
-1. 把下面的 `marathon.css` 原样存进项目（如 `src/marathon/marathon.css`），在入口文件 `import` 一次。它已经包含第 3 节的本机原版字体别名和全部 token。
+1. 把本 skill 的 `assets/react/marathon.css` 原样复制进项目（如 `src/marathon/marathon.css`），在入口文件 `import` 一次。它已经包含第 3 节的本机原版字体别名和全部 token。
 2. 在 HTML `<head>` 加免费替代字体（本机有原版时不会下载）：
    `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,400..800&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif&display=swap">`
-3. 把 `Marathon.tsx` 原样存进项目，从里面导入组件。依赖只有 React 18+，TypeScript strict 下可编译；纯 JS 项目去掉类型标注即可。
+3. 把 `assets/react/Marathon.tsx` 原样复制进项目，从里面导入组件。依赖只有 React 18+，TypeScript strict 下可编译；纯 JS 项目去掉类型标注即可。完整示例页是 `assets/react/Demo.tsx`，效果图在 `references/screenshots/`。
 4. 整个页面包在 `<MtRoot>` 里。需要新组件时沿用 `mt-` 前缀、token 变量和第 5 节规则，在 CSS 里补类名。
 
 | 组件 | 用途 | 关键 props |
@@ -175,6 +184,19 @@ Google Fonts 引入：`Chakra Petch:wght@500;700`、`Archivo:wdth,wght@125,400..
 | `MtMarquee` | 结尾宣言跑马灯 | `items` `speed` |
 | `MtStripes` / `MtRule` / `MtCrosshair` | 斜纹警示条 / 4px 酸绿分隔线 / 十字准星 | |
 | `useScramble` / `useReducedMotion` | 文字乱码解码 / 减弱动效检测 | |
+| **局内组件（第 12 节）** | | |
+| `MtTabBar` | 大厅顶部 Tab，选中项酸绿底黑字，带 01/02 编号 | `tabs` `value` `onChange` `end` |
+| `MtItemTile` / `MtItemGrid` | 仓库方格：角落编号和数量、底部稀有度条 + 右上角色块、弹药 / 适配标记 | `item: MtItem` `selected` `onSelect`；`items` `cells` |
+| `MtRarityChip` | 稀有度小标签 | `rarity`: standard / enhanced / deluxe / superior / prestige |
+| `MtSpecTable` | 等宽参数表，重点行酸绿底 | `rows: {k,v,highlight?}[]` `title` |
+| `MtHoldButton` | 长按确认（出售、拆卸） | `duration` `onConfirm` |
+| `MtVitals` | 护盾 / 生命 / 热量分段条，条旁边带数字 | `shield` `health` `heat`（0–1） |
+| `MtFactionCard` | 阵营卡：缩写大字 + 衬线口号 + 声望 | `short` `name` `slogan` `accent` `rank` `progress` |
+| `MtTransfer` | 电光蓝传送 / 加载屏：像素飞蛾 + 逐行状态日志 + 进度 | `lines` `progress` `destination` |
+| `MtPixelMoth` | 对称像素飞蛾，按 seed 稳定生成 | `seed` `cols` `rows` `size` |
+| `MtCodexCard` | 绿色 CRT 风格的 Codex 文档卡 | `id` `title` |
+| `MtExfilResult` | 撤离结算：满版状态词 + 战利品账单 | `status`: exfiltrated / lost，`loot` `currency` |
+| `MtPixelIcon` | 7×7 像素小图标（`MT_PIXEL_ICONS`，14 个） | `name` `size` |
 
 所有动效都遵守 `prefers-reduced-motion`。
 
@@ -214,368 +236,40 @@ export default function Page() {
 }
 ```
 
-### marathon.css
-```css
-/* Marathon UI: fonts (local originals first), tokens, component styles */
-@font-face{font-family:"MT Display";font-weight:300;src:local("KH Interference Light"),local("KHInterference-Light");}
-@font-face{font-family:"MT Display";font-weight:400 900;src:local("KH Interference"),local("KH Interference Regular"),local("KHInterference-Regular"),local("KHInterference");}
-@font-face{font-family:"MT Wide";font-weight:400 900;src:local("Shapiro 65 Light Wide"),local("Shapiro Wide"),local("Shapiro-65LightWide"),local("Shapiro65LightWide"),local("ShapiroWide");}
-@font-face{font-family:"MT Serif";src:local("IvyPresto Headline"),local("IvyPresto Headline Regular"),local("IvyPrestoHeadline-Regular"),local("IvyPrestoHeadline");}
-@font-face{font-family:"MT Mono";font-weight:400;src:local("Fraktion Mono"),local("Fraktion Mono Regular"),local("FraktionMono-Regular"),local("PPFraktionMono-Regular"),local("PP Fraktion Mono");}
-@font-face{font-family:"MT Mono";font-weight:500 900;src:local("Fraktion Mono Medium"),local("FraktionMono-Medium"),local("PPFraktionMono-Medium"),local("PP Fraktion Mono Medium");}
+## 12. 游戏内界面模式
+网页之外，Marathon 的局内界面有一套自己的模式。下面的结论来自评测、补丁说明和截图说明（详见 `references/research.md`），标了"推断"的是没有一手来源的设计建议。
 
-:root{
-  --mt-black:#0A0A0A;--mt-ink:#141414;--mt-bone:#E8E6DF;--mt-white:#F7F7F2;
-  --mt-gray-700:#2B2B2B;--mt-gray-400:#8A8A85;
-  --mt-acid:#C2FE0B;--mt-magenta:#EA027E;--mt-ultra:#3601FB;--mt-orange:#FF5500;
-  --mt-font-display:"MT Display","Chakra Petch","Michroma",sans-serif;
-  --mt-font-wide:"MT Wide","Archivo",sans-serif;
-  --mt-font-serif:"MT Serif","Instrument Serif",serif;
-  --mt-font-mono:"MT Mono","JetBrains Mono","IBM Plex Mono",monospace;
-  --mt-fs-mega:clamp(56px,10vw,160px);--mt-fs-h1:clamp(40px,6vw,88px);--mt-fs-h2:clamp(28px,3.5vw,48px);
-  --mt-fs-h3:20px;--mt-fs-body:15px;--mt-fs-meta:11px;
-  --mt-gutter:48px;--mt-cut:12px;--mt-ease:cubic-bezier(.2,.8,0,1);
-}
-@media (max-width:720px){:root{--mt-gutter:16px}}
+**大厅**
+- 顶部横向 Tab：Loadout、Vault、Factions、Codex、Rewards、Store。暗底上的选中项用酸绿底黑字。
+- 很多操作是**长按确认**（出售、拆卸、切换菜单），用 `MtHoldButton`。
+- 第二赛季把 Loadout 和 Vault 合并、简化了大厅。做大厅时层级尽量浅，别让玩家钻五六层菜单。
 
-.mt-root{background:var(--mt-black);color:var(--mt-white);font:400 var(--mt-fs-body)/1.55 var(--mt-font-mono);
-  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;overflow-x:hidden}
-.mt-root *,.mt-root *::before,.mt-root *::after{box-sizing:border-box}
+**仓库（Vault）**
+- 网格背包，仓库最多 512 格，物品占格子。方格硬直角，稀有度色出现在格子本身上（底部条 + 角标）。
+- 武器格右下角显示弹药类型图标；配件格左下角显示适配标记：`←` 表示适配已装备武器，`X` 表示都不适配。
+- 稀有度五档：Standard 灰、Enhanced 绿、Deluxe 蓝、Superior 紫、Prestige 金。游戏还有四种色盲模式，重要信息不要只靠颜色区分。
+- 第二赛季简化了物品格、降低了图标颜色饱和度。格子里只放必要信息，详情放在旁边的参数表里。
 
-/* type */
-.mt-eyebrow{font:500 var(--mt-fs-meta)/1.2 var(--mt-font-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--mt-gray-400);margin:0}
-.mt-eyebrow--accent{color:var(--mt-acid)}
-.mt-title{font:700 var(--mt-fs-h1)/.9 var(--mt-font-display);text-transform:uppercase;letter-spacing:-.01em;margin:0;overflow-wrap:anywhere}
-.mt-title--mega{font-size:var(--mt-fs-mega)}
-.mt-title--h2{font-size:var(--mt-fs-h2)}
-.mt-wide{font-family:var(--mt-font-wide);font-stretch:125%;text-transform:uppercase;letter-spacing:.04em}
-.mt-body{max-width:56ch;margin:0}
+**HUD**
+- 命中提示是 "X"；倒地敌人头上显示彩色骷髅；有热量条（反向体力）、装备轮盘、10 秒撤离倒计时。
+- 原版的护盾指示太小被大量吐槽。做 HUD 时分段条旁边一定写数字，正文不小于 12px。
+- 推断：左下护盾 / 生命，右下弹药和武器代号，顶部方向条；小号等宽字，酸绿或白色，背景透明。
 
-/* button */
-.mt-btn{display:inline-flex;align-items:center;gap:10px;font:700 14px/1 var(--mt-font-wide);font-stretch:125%;
-  text-transform:uppercase;letter-spacing:.08em;padding:16px 28px;border:0;border-radius:0;cursor:pointer;text-decoration:none;white-space:nowrap;
-  transition:background .15s var(--mt-ease),color .15s var(--mt-ease),box-shadow .15s var(--mt-ease)}
-.mt-btn--primary{background:var(--mt-acid);color:var(--mt-black);
-  clip-path:polygon(0 0,calc(100% - var(--mt-cut)) 0,100% var(--mt-cut),100% 100%,0 100%)}
-.mt-btn--primary:hover{background:var(--mt-black);color:var(--mt-acid);box-shadow:inset 0 0 0 2px var(--mt-acid)}
-.mt-btn--ghost{background:transparent;color:currentColor;box-shadow:inset 0 0 0 1px currentColor}
-.mt-btn--ghost:hover{background:var(--mt-white);color:var(--mt-black)}
-.mt-btn--link{background:none;color:currentColor;padding:4px 0;
-  background-image:linear-gradient(currentColor,currentColor);background-size:0 1px;background-repeat:no-repeat;background-position:0 100%;
-  transition:background-size .25s var(--mt-ease)}
-.mt-btn--link:hover{background-size:100% 1px}
-.mt-btn:focus-visible{outline:2px solid var(--mt-acid);outline-offset:3px}
+**传送 / 加载屏**
+- 整屏电光蓝，一只大的像素飞蛾形象，旁边逐行出现状态日志："Searching…"、"Molecular disassembly complete"、"Transfer to destination in progress…"。用 `MtTransfer`。
 
-/* tag */
-.mt-tag{display:inline-block;font:500 10px/1.2 var(--mt-font-mono);text-transform:uppercase;letter-spacing:.1em;padding:2px 6px}
-.mt-tag--acid{background:var(--mt-acid);color:var(--mt-black)}
-.mt-tag--magenta{background:var(--mt-magenta);color:var(--mt-white)}
-.mt-tag--ultra{background:var(--mt-ultra);color:var(--mt-white)}
-.mt-tag--orange{background:var(--mt-orange);color:var(--mt-black)}
-.mt-tag--outline{box-shadow:inset 0 0 0 1px currentColor}
+**Codex**
+- 档案卡用 80 年代绿色荧光屏字体（像 Minitel 终端），绿底绿字、扫描线、闪烁光标。用 `MtCodexCard`。
 
-/* nav */
-.mt-nav{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:32px;height:60px;padding:0 var(--mt-gutter);
-  background:var(--mt-black);border-bottom:1px solid var(--mt-gray-700)}
-.mt-nav__logo{font:700 18px/1 var(--mt-font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--mt-white);text-decoration:none}
-.mt-nav__links{display:flex;gap:24px;list-style:none;margin:0;padding:0}
-.mt-nav__links a{font:500 12px/1 var(--mt-font-wide);font-stretch:125%;text-transform:uppercase;letter-spacing:.06em;color:var(--mt-white);text-decoration:none;opacity:.75}
-.mt-nav__links a:hover,.mt-nav__links a[aria-current]{opacity:1;color:var(--mt-acid)}
-.mt-nav__actions{margin-left:auto;display:flex;align-items:center;gap:16px}
-.mt-nav .mt-btn{padding:12px 18px;font-size:12px}
-@media (max-width:720px){.mt-nav__links{display:none}}
+**撤离结算**（推断）
+- 满版状态词（EXFILTRATED / RUNNER LOST），下面是等宽字的战利品账单、稀有度标签和合计。用 `MtExfilResult`。
 
-/* section */
-.mt-section{position:relative;padding:clamp(64px,10vw,128px) var(--mt-gutter);display:grid;gap:24px;overflow:hidden}
-.mt-section--dark{background:var(--mt-black);color:var(--mt-white)}
-.mt-section--bone{background:var(--mt-bone);color:var(--mt-black)}
-.mt-section--bone .mt-eyebrow{color:#55554f}
-.mt-section--acid{background:var(--mt-acid);color:var(--mt-black)}
-.mt-section--acid .mt-eyebrow{color:var(--mt-black)}
-.mt-section--ultra{background:var(--mt-ultra);color:var(--mt-white)}
-.mt-section--ultra .mt-eyebrow{color:var(--mt-white)}
-.mt-section__meta{position:absolute;font:500 10px/1 var(--mt-font-mono);text-transform:uppercase;letter-spacing:.12em;opacity:.6}
-.mt-section__meta--tl{top:16px;left:var(--mt-gutter)}.mt-section__meta--tr{top:16px;right:var(--mt-gutter)}
-.mt-section__meta--bl{bottom:16px;left:var(--mt-gutter)}.mt-section__meta--br{bottom:16px;right:var(--mt-gutter)}
-.mt-split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
-.mt-split--reverse>:first-child{order:2}
-@media (max-width:720px){.mt-split{grid-template-columns:1fr}.mt-split--reverse>:first-child{order:0}}
-.mt-rule{height:4px;background:var(--mt-acid);border:0;margin:0}
+**阵营**
+- 每个阵营当作独立品牌：缩写 + 全称 + 口号，各自一个强调色，叠在统一的暗色系统上。只有 Arachne 的血红色有明确来源，其他阵营色是建议值。做原创项目时用自己编的阵营名，不要用官方阵营标志。
 
-/* news */
-.mt-news{list-style:none;margin:0;padding:0;border-top:1px solid var(--mt-gray-700)}
-.mt-news__item a{display:grid;grid-template-columns:180px 1fr auto;gap:24px;align-items:baseline;padding:20px 0;
-  border-bottom:1px solid var(--mt-gray-700);color:inherit;text-decoration:none;transition:background .15s,color .15s}
-.mt-news__item a:hover{background:var(--mt-acid);color:var(--mt-black)}
-.mt-news__meta{font:500 var(--mt-fs-meta)/1.2 var(--mt-font-mono);text-transform:uppercase;letter-spacing:.12em;opacity:.65}
-.mt-news__title{font:700 18px/1.2 var(--mt-font-wide);font-stretch:125%;text-transform:uppercase;letter-spacing:.02em}
-@media (max-width:720px){.mt-news__item a{grid-template-columns:1fr auto}.mt-news__meta{grid-column:1/-1}}
+**可读性守则**（来自上线后的批评和第二赛季的修正）
+- 保留字体混排，但每个面板只有一个主角。
+- 图标要能互相区分，不要几种物品用几乎一样的图标。
+- 数值写在条旁边，不要只靠条的长短。
+- 菜单层级浅，常用操作有快捷入口。
 
-/* thumbnails */
-.mt-thumbs{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
-.mt-thumb{flex:0 0 128px;display:grid;gap:8px;background:none;border:0;padding:0;color:inherit;text-align:left;cursor:pointer}
-.mt-thumb__img{position:relative;width:128px;height:128px;background:var(--mt-ink) center/cover;outline:1px solid var(--mt-gray-700);outline-offset:-1px}
-.mt-thumb[aria-pressed="true"] .mt-thumb__img{outline:2px solid var(--mt-acid);outline-offset:-2px}
-.mt-thumb__num{position:absolute;top:6px;left:6px;font:500 10px/1 var(--mt-font-mono);background:var(--mt-black);color:var(--mt-white);padding:3px 4px}
-.mt-thumb__label{font:500 10px/1.3 var(--mt-font-mono);text-transform:uppercase;letter-spacing:.1em}
-
-/* data card */
-.mt-card{position:relative;background:var(--mt-ink);color:var(--mt-white);border:1px solid var(--mt-gray-700);padding:20px;display:grid;gap:12px;
-  clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%)}
-.mt-card__head{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.mt-card__value{font:700 clamp(40px,5vw,64px)/.9 var(--mt-font-display);text-transform:uppercase}
-.mt-card__unit{font:500 var(--mt-fs-meta)/1 var(--mt-font-mono);letter-spacing:.12em;color:var(--mt-gray-400);margin-left:6px}
-
-/* barcode */
-.mt-barcode{display:block;height:24px;width:120px;color:currentColor}
-
-/* progress */
-.mt-progress{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;height:12px}
-.mt-progress__seg{background:var(--mt-gray-700)}
-.mt-progress__seg--on{background:var(--mt-acid)}
-
-/* marquee */
-.mt-marquee{overflow:hidden;background:var(--mt-acid);color:var(--mt-black);padding:18px 0;white-space:nowrap}
-.mt-marquee__track{display:inline-flex;gap:48px;animation:mt-marquee var(--mt-marquee-speed,30s) linear infinite}
-.mt-marquee__item{font:700 clamp(24px,4vw,48px)/1 var(--mt-font-display);text-transform:uppercase}
-@keyframes mt-marquee{to{transform:translateX(-50%)}}
-
-/* decor */
-.mt-stripes{height:16px;background:repeating-linear-gradient(-45deg,var(--mt-acid) 0 8px,var(--mt-black) 8px 16px)}
-.mt-crosshair{position:absolute;width:16px;height:16px;pointer-events:none}
-.mt-crosshair::before,.mt-crosshair::after{content:"";position:absolute;background:currentColor;opacity:.5}
-.mt-crosshair::before{left:7px;top:0;width:1px;height:16px}.mt-crosshair::after{top:7px;left:0;height:1px;width:16px}
-
-@media (prefers-reduced-motion:reduce){
-  .mt-marquee__track{animation:none}
-  .mt-root *{transition-duration:0s!important}
-}
-```
-
-### Marathon.tsx
-```tsx
-// Marathon UI React components. Requires marathon.css.
-import {
-  useEffect, useMemo, useState,
-  type AnchorHTMLAttributes, type ButtonHTMLAttributes, type CSSProperties, type ReactNode,
-} from "react";
-
-const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
-
-type Tone = "acid" | "magenta" | "ultra" | "orange";
-
-/* ---------- hooks ---------- */
-
-export function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const on = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  return reduced;
-}
-
-const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#_<>[]";
-
-/** Decodes text from random glyphs into the final string. */
-export function useScramble(text: string, duration = 600, enabled = true) {
-  const reduced = useReducedMotion();
-  const [out, setOut] = useState(text);
-  useEffect(() => {
-    if (reduced || !enabled) { setOut(text); return; }
-    let raf = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - start) / duration);
-      const fixed = Math.floor(p * text.length);
-      setOut(text.split("").map((ch, i) =>
-        i < fixed || ch === " " ? ch : GLYPHS[Math.floor(Math.random() * GLYPHS.length)]).join(""));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [text, duration, reduced, enabled]);
-  return out;
-}
-
-/* ---------- root & type ---------- */
-
-export function MtRoot({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("mt-root", className)}>{children}</div>;
-}
-
-export function MtEyebrow({ children, accent }: { children: ReactNode; accent?: boolean }) {
-  return <p className={cx("mt-eyebrow", accent && "mt-eyebrow--accent")}>{children}</p>;
-}
-
-export function MtTitle({ children, size = "h1", as: Tag = "h2", scramble }: {
-  children: string; size?: "mega" | "h1" | "h2"; as?: "h1" | "h2" | "h3"; scramble?: boolean;
-}) {
-  const text = useScramble(children, 600, !!scramble);
-  return (
-    <Tag className={cx("mt-title", size === "mega" && "mt-title--mega", size === "h2" && "mt-title--h2")} aria-label={children}>
-      <span aria-hidden>{text}</span>
-    </Tag>
-  );
-}
-
-/* ---------- button & tag ---------- */
-
-type BtnVariant = "primary" | "ghost" | "link";
-type BtnProps =
-  | ({ href: string; variant?: BtnVariant; arrow?: boolean } & AnchorHTMLAttributes<HTMLAnchorElement>)
-  | ({ href?: undefined; variant?: BtnVariant; arrow?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>);
-
-export function MtButton({ variant = "primary", arrow, className, children, ...rest }: BtnProps) {
-  const cls = cx("mt-btn", `mt-btn--${variant}`, className);
-  const body = <>{children}{arrow && <span aria-hidden>→</span>}</>;
-  if (rest.href !== undefined)
-    return <a className={cls} {...(rest as AnchorHTMLAttributes<HTMLAnchorElement>)}>{body}</a>;
-  return <button className={cls} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)}>{body}</button>;
-}
-
-export function MtTag({ children, tone = "acid", outline }: { children: ReactNode; tone?: Tone; outline?: boolean }) {
-  return <span className={cx("mt-tag", outline ? "mt-tag--outline" : `mt-tag--${tone}`)}>{children}</span>;
-}
-
-/* ---------- nav ---------- */
-
-export function MtNav({ logo, links, current, actions }: {
-  logo: ReactNode; links: { label: string; href: string }[]; current?: string; actions?: ReactNode;
-}) {
-  return (
-    <nav className="mt-nav">
-      <a className="mt-nav__logo" href="/">{logo}</a>
-      <ul className="mt-nav__links">
-        {links.map(l => (
-          <li key={l.href}><a href={l.href} aria-current={l.href === current ? "page" : undefined}>{l.label}</a></li>
-        ))}
-      </ul>
-      <div className="mt-nav__actions">{actions}</div>
-    </nav>
-  );
-}
-
-/* ---------- section ---------- */
-
-type Corner = "tl" | "tr" | "bl" | "br";
-
-export function MtSection({ tone = "dark", eyebrow, title, titleSize = "h1", meta, children, id }: {
-  tone?: "dark" | "bone" | "acid" | "ultra"; eyebrow?: ReactNode; title?: string;
-  titleSize?: "mega" | "h1" | "h2"; meta?: Partial<Record<Corner, ReactNode>>; children?: ReactNode; id?: string;
-}) {
-  return (
-    <section id={id} className={cx("mt-section", `mt-section--${tone}`)}>
-      {meta && (Object.keys(meta) as Corner[]).map(k =>
-        <span key={k} className={`mt-section__meta mt-section__meta--${k}`} aria-hidden>{meta[k]}</span>)}
-      {eyebrow && <MtEyebrow>{eyebrow}</MtEyebrow>}
-      {title && <MtTitle size={titleSize}>{title}</MtTitle>}
-      {children}
-    </section>
-  );
-}
-
-/** Two columns that stack on mobile; `reverse` swaps sides on desktop. */
-export function MtSplit({ children, reverse }: { children: [ReactNode, ReactNode]; reverse?: boolean }) {
-  return <div className={cx("mt-split", reverse && "mt-split--reverse")}><div>{children[0]}</div><div>{children[1]}</div></div>;
-}
-
-/* ---------- news ---------- */
-
-export function MtNewsList({ items }: { items: { source: string; date: string; title: string; href: string }[] }) {
-  return (
-    <ul className="mt-news">
-      {items.map(n => (
-        <li key={n.href} className="mt-news__item">
-          <a href={n.href}>
-            <span className="mt-news__meta">{n.source} · {n.date}</span>
-            <span className="mt-news__title">{n.title}</span>
-            <span aria-hidden>→</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/* ---------- thumbnails ---------- */
-
-export function MtThumbRail({ items, selected, onSelect }: {
-  items: { label: string; image?: string }[]; selected: number; onSelect: (i: number) => void;
-}) {
-  return (
-    <div className="mt-thumbs" role="group">
-      {items.map((t, i) => (
-        <button key={i} className="mt-thumb" aria-pressed={i === selected} onClick={() => onSelect(i)}>
-          <span className="mt-thumb__img" style={t.image ? { backgroundImage: `url(${t.image})` } : undefined}>
-            <span className="mt-thumb__num">{String(i + 1).padStart(2, "0")}</span>
-          </span>
-          <span className="mt-thumb__label">{t.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ---------- data ---------- */
-
-/** Decorative barcode; bars derive from `seed` so it stays stable across renders. */
-export function MtBarcode({ seed = "MARATHON", bars = 36 }: { seed?: string; bars?: number }) {
-  const widths = useMemo(() => {
-    let h = 0;
-    for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-    return Array.from({ length: bars }, () => { h = (h * 1103515245 + 12345) >>> 0; return 1 + (h >>> 16) % 3; });
-  }, [seed, bars]);
-  let x = 0;
-  const total = widths.reduce((a, w) => a + w * 2, 0);
-  return (
-    <svg className="mt-barcode" viewBox={`0 0 ${total} 24`} preserveAspectRatio="none" aria-hidden>
-      {widths.map((w, i) => { const r = <rect key={i} x={x} y={0} width={w} height={24} fill="currentColor" />; x += w * 2; return r; })}
-    </svg>
-  );
-}
-
-export function MtDataCard({ label, value, unit, tag, children }: {
-  label: string; value: ReactNode; unit?: string; tag?: ReactNode; children?: ReactNode;
-}) {
-  return (
-    <div className="mt-card">
-      <div className="mt-card__head"><MtEyebrow>{label}</MtEyebrow>{tag ?? <MtBarcode seed={label} />}</div>
-      <div><span className="mt-card__value">{value}</span>{unit && <span className="mt-card__unit">{unit}</span>}</div>
-      {children}
-    </div>
-  );
-}
-
-export function MtProgress({ value, segments = 16, label }: { value: number; segments?: number; label?: string }) {
-  const on = Math.round(Math.max(0, Math.min(1, value)) * segments);
-  return (
-    <div className="mt-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100}
-      aria-valuenow={Math.round(value * 100)} aria-label={label}>
-      {Array.from({ length: segments }, (_, i) =>
-        <span key={i} className={cx("mt-progress__seg", i < on && "mt-progress__seg--on")} />)}
-    </div>
-  );
-}
-
-/* ---------- bands & decor ---------- */
-
-export function MtMarquee({ items, speed = 30 }: { items: string[]; speed?: number }) {
-  const row = [...items, ...items];
-  return (
-    <div className="mt-marquee" aria-label={items.join(" ")}>
-      <div className="mt-marquee__track" style={{ "--mt-marquee-speed": `${speed}s` } as CSSProperties} aria-hidden>
-        {row.map((t, i) => <span key={i} className="mt-marquee__item">{t}</span>)}
-      </div>
-    </div>
-  );
-}
-
-export const MtStripes = () => <div className="mt-stripes" aria-hidden />;
-export const MtRule = () => <hr className="mt-rule" />;
-export const MtCrosshair = ({ style }: { style?: CSSProperties }) =>
-  <span className="mt-crosshair" style={style} aria-hidden />;
-```
