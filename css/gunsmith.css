@@ -72,6 +72,9 @@ a { color: var(--acid); }
 .slot.missing .req { color: var(--orange); }
 .slot.active { border-color: var(--acid); }
 .slot.flash { animation: flash .6s steps(2) 2; }
+.slot.focus { border-color: var(--bone); }
+.slot .effect { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.slot .effect.base { font-size: 10px; color: var(--gray); letter-spacing: .04em; }
 @keyframes flash { 50% { background: var(--orange); color: var(--black); } }
 
 /* ---------- part tray ---------- */
@@ -121,8 +124,10 @@ a { color: var(--acid); }
 .trigger:active { transform: translateY(1px); }
 
 /* ---------- skin ---------- */
-.decal-lib { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.decal-tile { aspect-ratio: 1; background: var(--ink); border: 1px solid var(--line); padding: 6px; display: grid; place-items: center; }
+.decal-lib .lib-group { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--bone); margin: 10px 0 4px; }
+.decal-lib .lib-group:first-child { margin-top: 0; }
+.decal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.decal-tile { aspect-ratio: 1; background: var(--ink); border: 1px solid var(--line); padding: 5px; display: grid; place-items: center; min-width: 0; }
 .decal-tile svg { width: 100%; height: 100%; }
 .decal-tile:hover { border-color: var(--bone); }
 .decal-tile.on { border-color: var(--acid); background: var(--ink-2); }
@@ -155,6 +160,23 @@ a { color: var(--acid); }
 .hud .ammo span { font: 500 16px var(--mono); color: var(--gray); margin-left: 6px; }
 .ammo-state { display: inline-block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--acid); min-height: 1.4em; padding: 1px 6px; }
 .ammo-state.bad { color: var(--orange); animation: flash .6s steps(2) infinite; }
+/* Part callouts on the bench, and the part they point at */
+.callout { cursor: pointer; }
+.callout .leader { fill: none; stroke: var(--gray); stroke-width: 1; }
+.callout .pin { fill: var(--black); stroke: var(--bone); stroke-width: 1.2; }
+.callout .box { fill: var(--black); stroke: var(--line); stroke-width: 1; }
+.callout text { font: 500 10px var(--mono); letter-spacing: .1em; fill: var(--gray); }
+.callout .part-name { font: 700 13px var(--wide); font-stretch: 125%; letter-spacing: .04em; fill: var(--white); }
+.callout .stat-line { font-size: 11.5px; letter-spacing: .04em; fill: var(--bone); }
+.callout .stat-line .up { fill: var(--acid); } .callout .stat-line .down { fill: var(--orange); } .callout .stat-line .k { fill: var(--gray); }
+.callout.active .box { stroke: var(--acid); }
+.callout.focus .box, .callout:hover .box { stroke: var(--bone); fill: var(--ink-2); }
+.callout.focus .leader, .callout.focus .pin { stroke: var(--acid); }
+#gun [data-slot] { transition: opacity .15s; }
+#gun[data-focus] [data-slot] { opacity: .25; }
+#gun[data-focus="frame"] [data-slot="frame"], #gun[data-focus="barrel"] [data-slot="barrel"], #gun[data-focus="magazine"] [data-slot="magazine"],
+#gun[data-focus="optic"] [data-slot="optic"], #gun[data-focus="grip"] [data-slot="grip"], #gun[data-focus="stock"] [data-slot="stock"] { opacity: 1; }
+
 .socket { cursor: pointer; }
 .socket circle { fill: var(--black); stroke: var(--acid); stroke-width: 2; }
 .socket path { stroke: var(--acid); stroke-width: 2; }
@@ -166,7 +188,10 @@ a { color: var(--acid); }
 @keyframes snap { from { opacity: 0; transform: var(--from); } }
 .decal-hit { cursor: move; }
 .sel-box { fill: none; stroke: var(--acid); stroke-width: 1.5; stroke-dasharray: 5 4; pointer-events: none; }
-.preview-decal { pointer-events: none; opacity: .75; }
+.zone-box { fill: rgba(194, 254, 11, .08); stroke: var(--acid); stroke-width: 1.5; stroke-dasharray: 3 3; pointer-events: none; }
+#layout-seg { display: grid; grid-template-columns: 1fr 1fr; }
+.decal-edit[hidden] { display: none; }
+#pos-seg button { padding: 5px 8px; font-size: 10px; }
 .lane-floor { stroke: #222; }
 .target-ring { fill: none; stroke: #444; }
 .hit-x { stroke: var(--acid); stroke-width: 2.5; }

@@ -1,7 +1,7 @@
 // Run with: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PARTS, part, canAttach, attach, computeStats, previewDelta, EMPTY_BUILD, DEFAULT_BUILD } from "../src/parts.js";
+import { PARTS, part, canAttach, attach, computeStats, previewDelta, breakdown, EMPTY_BUILD, DEFAULT_BUILD } from "../src/parts.js";
 
 const rifle = { ...EMPTY_BUILD, frame: "m77", barrel: "cb14", magazine: "lt24" };
 
@@ -97,6 +97,16 @@ test("parts move the three stats the way their cards say", () => {
   assert.ok(breacher.f > base.f, "the breacher barrel adds firepower");
   const d = previewDelta(rifle, "optic", "ls4");
   assert.ok(d.a > 0 && d.h < 0);
+});
+
+test("the breakdown names every fitted part and adds up to the totals", () => {
+  const build = { ...rifle, barrel: "lf30", optic: "ms25", grip: "vg2" };
+  const rows = breakdown(build), s = computeStats(build);
+  assert.deepEqual(rows.map(r => r.id), ["m77", "lf30", "lt24", "ms25", "vg2", null]); // null: the empty stock mount
+  const sum = k => rows.reduce((t, r) => t + r[k], 0);
+  assert.ok(Math.abs(sum("f") - s.f) < 0.2, `firepower ${sum("f")} vs ${s.f}`);
+  assert.ok(Math.abs(sum("a") - s.a) < 0.2 && Math.abs(sum("h") - s.h) < 0.2);
+  assert.equal(rows.find(r => r.id === "ms25").a, part("optic", "ms25").d.a);
 });
 
 test("leaving the stock mount empty trades accuracy for handling", () => {

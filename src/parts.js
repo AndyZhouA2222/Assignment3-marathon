@@ -40,20 +40,21 @@ export const AMMO = {
 
 /* ------------------------------------------------------------------ traced shapes */
 // Most outlines are traced from MarathonDB weapon renders by tools/trace/trace.py and simplified to
-// polygons: `base` is the whole part, `dark` (frames only) the lower housing below the receiver.
+// polygons: `base` is the whole part, `dark` (frames only) the lower housing below the receiver,
+// `lines` the panel lines inside it and `zones` the flat areas where decals fit.
 // Each part keeps the attachment point of the weapon it was cut from, so parts line up on any frame.
 // Paint (p) on receivers, barrels and stocks; dark polymer (s) on magazines, sights and grips.
 const BASE_TONE = { frame: "p", barrel: "p", stock: "p", magazine: "s", optic: "s", grip: "s" };
 const traced = (slot, id) => {
   const t = TRACED[slot][id];
-  return () => shape(t.dark ? [[BASE_TONE[slot], t.base], ["s", t.dark]] : [[BASE_TONE[slot], t.base]]);
+  return () => shape(t.dark ? [[BASE_TONE[slot], t.base], ["s", t.dark]] : [[BASE_TONE[slot], t.base]], t.lines ? [t.lines] : []);
 };
 
 /* ------------------------------------------------------------------ frames */
 // Frame coordinates: (0, 0) is the top-left of the receiver. Sockets say where other parts attach:
 // muzzle [x, y] (barrel grows right), mag [x, y] (magazine grows down), rail [x, y, length]
 // (optic sits on top), stock [x, y] (stock grows left, null = no stock mount), trigger [x, y].
-const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, draw: traced("frame", f.id) });
+const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, zones: TRACED.frame[f.id].zones, draw: traced("frame", f.id) });
 const FRAMES = [
   frame({ id: "m77", name: "M77 Frame", source: "m77-assault-rifle", mode: "auto", tag: "Assault rifle" }),
   frame({ id: "brrt", name: "BRRT Frame", source: "brrt-smg", mode: "burst", burst: 5, tag: "SMG" }),
@@ -68,7 +69,7 @@ const FRAMES = [
 /* ------------------------------------------------------------------ parts */
 // Barrels: origin = muzzle socket on the bore line, growing right. `under` = foregrip mount
 // (null = no room), `tip` = where the muzzle flash appears.
-const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, draw: traced("barrel", b.id) });
+const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, zones: TRACED.barrel[b.id].zones, draw: traced("barrel", b.id) });
 const BARRELS = [
   barrel({ id: "sb09", name: "SB-09 Stub", source: "brrt-smg", d: { a: -6, h: 6 } }),
   barrel({ id: "sn06", name: "SN-06 Snub Nose", source: "magnum-mc", d: { f: 0.02, a: -3, h: 8 } }),
@@ -81,7 +82,7 @@ const BARRELS = [
 ];
 
 // Magazines: origin = top of the magazine (the socket), growing down.
-const mag = m => ({ ...m, draw: traced("magazine", m.id) });
+const mag = m => ({ ...m, zones: TRACED.magazine[m.id].zones, draw: traced("magazine", m.id) });
 const MAGAZINES = [
   mag({ id: "lt24", name: "LT-24 Raked", source: "m77-assault-rifle", ammo: "light_rounds", cap: 24, d: {} }),
   mag({ id: "lt35", name: "LT-35 Long", source: "brrt-smg", ammo: "light_rounds", cap: 35, d: { h: -2 } }),
@@ -98,7 +99,7 @@ const MAGAZINES = [
 ];
 
 // Optics: origin = centre of the frame's rail top, growing up. `len` is the rail length.
-const optic = o => ({ ...o, draw: traced("optic", o.id) });
+const optic = o => ({ ...o, zones: TRACED.optic[o.id].zones, draw: traced("optic", o.id) });
 const OPTICS = [
   // Plain iron sights stretch to fit the rail, so they are drawn by hand from its length.
   { id: "is00", name: "IS-00 Iron", source: "m77-assault-rifle", zoom: 1, d: { h: 2 },
@@ -111,7 +112,7 @@ const OPTICS = [
 ];
 
 // Foregrips: origin = the barrel's under mount, growing down.
-const fgrip = g => ({ ...g, draw: traced("grip", g.id) });
+const fgrip = g => ({ ...g, zones: TRACED.grip[g.id].zones, draw: traced("grip", g.id) });
 const GRIPS = [
   fgrip({ id: "ag1", name: "AG-1 Angled", source: "copperhead-rf", d: { a: 1, h: 5 } }),
   fgrip({ id: "vg2", name: "VG-2 Vertical", source: "bully-smg", d: { a: 4, h: 2 } }),
@@ -119,7 +120,7 @@ const GRIPS = [
 ];
 
 // Stocks: origin = the frame's stock socket, growing left.
-const stock = st => ({ ...st, draw: traced("stock", st.id) });
+const stock = st => ({ ...st, zones: TRACED.stock[st.id].zones, draw: traced("stock", st.id) });
 const STOCKS = [
   stock({ id: "sk1", name: "SK-1 Skeleton", source: "brrt-smg", d: { a: 2, h: 2 } }),
   stock({ id: "zb6", name: "ZB-6 Cell Butt", source: "v00-zeus-rg", d: { a: 4, h: 0 } }),
@@ -219,6 +220,27 @@ export function computeStats(build) {
     range: barrel ? barrel.range : null, zoom: optic ? optic.zoom : 1,
     ammo: frame.ammo, volt, suppressed: !!barrel?.suppressed,
   };
+}
+
+/**
+ * Where a build's numbers come from: the frame's base values, then what each fitted part adds, in the
+ * order computeStats applies them. Firepower multiplies, so each part's share is the change it makes at
+ * that point. Rows add up to the totals (before clamping). Returns [{ slot, id, name, f, a, h, base? }].
+ */
+export function breakdown(build) {
+  const frame = part("frame", build.frame);
+  if (!frame) return [];
+  const rows = [{ slot: "frame", id: frame.id, name: frame.name, f: frame.base.f, a: frame.base.a, h: frame.base.h, base: true }];
+  let f = frame.base.f;
+  for (const slot of ["barrel", "magazine", "optic", "grip", "stock"]) {
+    const p = part(slot, build[slot]);
+    if (!p) continue;
+    const next = f * (1 + (p.d.f ?? 0));
+    rows.push({ slot, id: p.id, name: p.name, f: r2(next - f), a: p.d.a ?? 0, h: p.d.h ?? 0 });
+    f = next;
+  }
+  if (frame.sockets.stock && !build.stock) rows.push({ slot: "stock", id: null, name: "Empty stock mount", f: 0, a: -8, h: 6 });
+  return rows;
 }
 
 /** How a part would change the three headline stats (for the preview chips on part cards). */

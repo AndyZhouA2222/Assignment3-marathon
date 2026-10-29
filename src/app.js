@@ -1,7 +1,7 @@
 // Gunsmith: app state, the build step and the shared stage. The skin step lives in skin.js and the
 // trigger / firing range in range.js; both receive the `app` object defined at the bottom.
-import { SLOTS, PARTS, part, canAttach, attach, computeStats, previewDelta, DEFAULT_BUILD } from "./parts.js";
-import { gunMarkup, partMarkup, FINISHES } from "./gun-svg.js";
+import { SLOTS, PARTS, part, canAttach, attach, computeStats, previewDelta, breakdown, DEFAULT_BUILD, EMPTY_BUILD } from "./parts.js";
+import { gunMarkup, partMarkup, pathBox } from "./gun-svg.js";
 import { describe } from "./feel.js";
 import * as sfx from "./audio.js";
 import { createSkin } from "./skin.js";
@@ -9,13 +9,13 @@ import { createRange } from "./range.js";
 
 const $ = s => document.querySelector(s);
 const NS = "http://www.w3.org/2000/svg";
-const STORE = "gunsmith.v1";
+const STORE = "gunsmith.v2"; // v2: clean default finish, decal positions
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ------------------------------------------------------------------ state */
 
 function fresh() {
-  return { step: "build", build: { ...DEFAULT_BUILD }, slot: "barrel", finish: "bone", wear: 0.15, decals: [], nextId: 1, libSeed: 1, distance: 25, muted: false };
+  return { step: "build", build: { ...DEFAULT_BUILD }, slot: "barrel", finish: "bone", wear: 0, decals: [], nextId: 1, distance: 25, muted: false };
 }
 // The saved build is per browser and only a convenience: anything unreadable falls back to a fresh bench.
 function load() {
@@ -28,7 +28,7 @@ function load() {
 }
 const state = load() ?? fresh();
 function save() {
-  try { const { step, build, finish, wear, decals, nextId, libSeed, distance, muted } = state; localStorage.setItem(STORE, JSON.stringify({ step, build, finish, wear, decals, nextId, libSeed, distance, muted })); }
+  try { const { step, build, finish, wear, decals, nextId, distance, muted } = state; localStorage.setItem(STORE, JSON.stringify({ step, build, finish, wear, decals, nextId, distance, muted })); }
   catch { /* storage blocked (private mode): the bench still works, it just won't remember */ }
 }
 
@@ -53,12 +53,14 @@ function flashSlot(slot) {
 /* ------------------------------------------------------------------ stage */
 
 const stage = $("#stage");
-stage.innerHTML = `<g id="lane"></g><g id="gun-root"><g id="gun-kick"><g id="gun"></g><g id="gun-fx"></g></g><g id="gun-ui"></g></g><g id="range-ui"></g>`;
-const layers = { lane: $("#lane"), root: $("#gun-root"), kick: $("#gun-kick"), gun: $("#gun"), fx: $("#gun-fx"), ui: $("#gun-ui"), range: $("#range-ui") };
+stage.innerHTML = `<g id="lane"></g><g id="callouts"></g><g id="gun-root"><g id="gun-kick"><g id="gun"></g><g id="gun-fx"></g></g><g id="gun-ui"></g></g><g id="range-ui"></g>`;
+const layers = { lane: $("#lane"), callouts: $("#callouts"), root: $("#gun-root"), kick: $("#gun-kick"), gun: $("#gun"), fx: $("#gun-fx"), ui: $("#gun-ui"), range: $("#range-ui") };
 let fit = { s: 1, tx: 0, ty: 0 }, lay = null;
 
-// Areas of the 1000×520 stage the gun is fitted into.
-const FRAME_BOX = { build: [70, 70, 860, 360], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190] };
+// Areas of the 1000×520 stage the gun is fitted into. In the build step the margins hold the part callouts,
+// except on narrow screens, where callouts would be too small to read and the slot list carries the numbers.
+const FRAME_BOX = { build: [110, 128, 780, 250], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190], narrow: [70, 70, 860, 360] };
+const narrow = matchMedia("(max-width: 1000px)");
 
 function renderGun() {
   const out = gunMarkup(state.build, { finish: state.finish, wear: state.wear, decals: state.decals, prefix: "g-" });
@@ -68,11 +70,12 @@ function renderGun() {
   const b = out.box, minW = 620, minH = 220;
   const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
   const w = Math.max(b.x1 - b.x0, minW), h = Math.max(b.y1 - b.y0, minH);
-  const [X, Y, W, H] = FRAME_BOX[state.step];
+  const [X, Y, W, H] = FRAME_BOX[state.step === "build" && narrow.matches ? "narrow" : state.step];
   const s = Math.min(W / w, H / h);
   fit = { s, tx: X + W / 2 - cx * s, ty: Y + H / 2 - cy * s };
   layers.root.setAttribute("transform", `translate(${fit.tx.toFixed(1)} ${fit.ty.toFixed(1)}) scale(${s.toFixed(4)})`);
   renderOverlay();
+  renderCallouts();
 }
 
 /** Converts a pointer event to gun coordinates. */
@@ -128,24 +131,89 @@ function renderOverlay() {
       ui.append(g);
     }
   }
-  if (state.step === "skin") skin.renderOverlay(ui, fit.s);
+  if (state.step === "skin") skin.renderOverlay(ui);
   $("#corner-tl").textContent = `BENCH 03 // ${part("frame", state.build.frame)?.name.toUpperCase() ?? "NO FRAME"}`;
 }
 
+/* ---------- callouts: each fitted part is labelled with what it does to the three stats ---------- */
+
+const STAT_KEYS = [["f", "FP"], ["a", "ACC"], ["h", "HDL"]];
+const fmt1 = v => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v * 10) / 10)}`;
+const CALLOUT_W = 186, CALLOUT_H = 50;
+const CALLOUT_ROW = { stock: "top", frame: "top", optic: "top", barrel: "top", magazine: "bottom", grip: "bottom" };
+
+function renderCallouts() {
+  const g = layers.callouts;
+  g.innerHTML = "";
+  if (state.step !== "build" || !lay?.placed.length || narrow.matches) return;
+  const rows = Object.fromEntries(breakdown(state.build).filter(r => r.id).map(r => [r.slot, r]));
+  const items = lay.placed.map(p => {
+    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const f of p.shape.fills) pathBox(f.d, p.x, p.y, b);
+    const ax = ((b.x0 + b.x1) / 2) * fit.s + fit.tx, ay = (b.y0 + (b.y1 - b.y0) * (p.slot === "frame" ? 0.3 : 0.5)) * fit.s + fit.ty;
+    return { slot: p.slot, row: rows[p.slot], ax, ay, top: CALLOUT_ROW[p.slot] === "top" };
+  });
+  // Lay each row out left to right in anchor order, pushing labels apart so they never overlap.
+  for (const top of [true, false]) {
+    const row = items.filter(i => i.top === top).sort((a, b) => a.ax - b.ax);
+    const lo = 12, hi = (top ? 988 : 810) - CALLOUT_W; // the ammo counter sits in the bottom-right corner
+    row.forEach((it, i) => { it.x = Math.max(lo, it.ax - CALLOUT_W / 2, i ? row[i - 1].x + CALLOUT_W + 8 : lo); });
+    for (let i = row.length - 1; i >= 0; i--) row[i].x = Math.min(row[i].x, i < row.length - 1 ? row[i + 1].x - CALLOUT_W - 8 : hi);
+    row.forEach(it => { it.y = top ? 22 : 430; });
+  }
+  g.innerHTML = items.map(it => {
+    const { row: r } = it, edge = it.top ? it.y + CALLOUT_H : it.y, lx = Math.min(Math.max(it.ax, it.x + 12), it.x + CALLOUT_W - 12);
+    const mid = it.top ? edge + 14 : edge - 14;
+    const chips = r.base
+      ? STAT_KEYS.map(([k, l]) => `<tspan class="k">${l}</tspan> ${Math.round(r[k])}`).join("  ")
+      : STAT_KEYS.filter(([k]) => Math.abs(r[k]) >= 0.05).map(([k, l]) => `<tspan class="${r[k] > 0 ? "up" : "down"}">${l} ${fmt1(r[k])}</tspan>`).join("  ") || `<tspan class="k">No stat change</tspan>`;
+    return `<g class="callout${state.slot === it.slot ? " active" : ""}" data-slot="${it.slot}">` +
+      `<path class="leader" d="M${it.ax} ${it.ay}V${mid}H${lx}V${edge}"/><rect class="pin" x="${it.ax - 3}" y="${it.ay - 3}" width="6" height="6"/>` +
+      `<path class="box" d="M${it.x} ${it.y}h${CALLOUT_W - 8}l8 8v${CALLOUT_H - 8}h${-CALLOUT_W}z"/>` +
+      `<text x="${it.x + 9}" y="${it.y + 15}" class="slot-name">${SLOTS.find(s => s.id === it.slot).label.toUpperCase()}${r.base ? " · BASE" : ""}</text>` +
+      `<text x="${it.x + 9}" y="${it.y + 30}" class="part-name">${r.name.toUpperCase()}</text>` +
+      `<text x="${it.x + 9}" y="${it.y + 44}" class="stat-line">${chips}</text></g>`;
+  }).join("");
+}
+
+/** Highlights one part on the gun, its callout and slot, and shows on the bars what it adds. */
+let focus = null;
+function setFocus(slot) {
+  if (slot && !state.build[slot]) slot = null;
+  if (slot === focus) return;
+  focus = slot;
+  if (slot) layers.gun.dataset.focus = slot; else delete layers.gun.dataset.focus;
+  layers.callouts.querySelectorAll(".callout").forEach(c => c.classList.toggle("focus", c.dataset.slot === slot));
+  document.querySelectorAll(".slot").forEach(b => b.classList.toggle("focus", b.dataset.slot === slot));
+  if (slot) renderStats(state.build, slot === "frame" ? EMPTY_BUILD : { ...state.build, [slot]: null });
+  else renderStats();
+}
+/** The fitted part under a pointer event, if any. */
+function partAt(e) {
+  const p = toGun(e);
+  for (const el of [...layers.gun.querySelectorAll(".metal path")].reverse()) {
+    if (el.isPointInFill?.(new DOMPoint(p.x - +el.dataset.x, p.y - +el.dataset.y))) return el.dataset.slot;
+  }
+  return null;
+}
+
 function renderSlots() {
-  const stats = computeStats(state.build);
+  const stats = computeStats(state.build), rows = breakdown(state.build);
   $("#slot-list").innerHTML = SLOTS.map(s => {
     const p = part(s.id, state.build[s.id]);
-    const missing = s.required && !p;
+    const missing = s.required && !p, r = rows.find(x => x.slot === s.id);
+    const effect = !r ? "" : r.base
+      ? `<span class="effect base">${STAT_KEYS.map(([k, l]) => `${l} ${Math.round(r[k])}`).join(" · ")}</span>`
+      : `<span class="effect">${chipList(r) || `<span class="chip">No stat change</span>`}</span>`;
     return `<li><button class="slot${p ? " filled" : ""}${missing ? " missing" : ""}${state.slot === s.id ? " active" : ""}" data-slot="${s.id}">
       <span class="label">${s.label}</span><span class="req">${s.required ? "REQ" : "OPT"}</span>
-      <span class="value">${p ? p.name : "Empty"}</span></button></li>`;
+      <span class="value">${p ? p.name : r ? r.name : "Empty"}</span>${effect}</button></li>`;
   }).join("");
   $("#build-name").textContent = stats.complete ? "Ready" : `Missing ${stats.missing.join(", ")}`;
 }
 
 function chipList(d) {
-  const c = (k, v) => (Math.abs(v) < 0.05 ? "" : `<span class="chip ${v > 0 ? "up" : "down"}">${k} ${v > 0 ? "+" : ""}${v}</span>`);
+  const c = (k, v) => (Math.abs(v) < 0.05 ? "" : `<span class="chip ${v > 0 ? "up" : "down"}">${k} ${fmt1(v)}</span>`);
   return c("FP", d.f) + c("ACC", d.a) + c("HDL", d.h);
 }
 function renderTray() {
@@ -167,8 +235,9 @@ function renderTray() {
   $("#tray").innerHTML = cards.join("");
 }
 
-function renderStats(preview) {
-  const now = computeStats(state.build), next = preview ? computeStats(preview) : null;
+/** Stat bars for the current build, or the change from `base` to `preview` (green gained, orange lost). */
+function renderStats(preview, base = state.build) {
+  const now = computeStats(base), next = preview ? computeStats(preview) : null;
   const rows = [["f", "Firepower"], ["a", "Accuracy"], ["h", "Handling"]];
   $("#stats").innerHTML = rows.map(([k, label]) => {
     const v = now[k], vN = now[k + "N"], nv = next ? next[k] : v, nN = next ? next[k + "N"] : vN;
@@ -192,7 +261,7 @@ function renderStats(preview) {
   $("#specs").innerHTML = spec.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
 }
 
-function renderBuildPanels() { renderSlots(); renderTray(); renderStats(); }
+function renderBuildPanels() { focus = null; renderSlots(); renderTray(); renderStats(); renderCallouts(); }
 
 /** Fits, swaps or removes a part. Refusals and parts that fall off are explained in the toast. */
 function choose(slot, id) {
@@ -231,10 +300,27 @@ function choose(slot, id) {
 }
 
 // Slot list
+$("#slot-list").addEventListener("pointerover", e => setFocus(e.target.closest(".slot")?.dataset.slot ?? null));
+$("#slot-list").addEventListener("pointerleave", () => setFocus(null));
 $("#slot-list").addEventListener("click", e => {
   const b = e.target.closest(".slot");
   if (!b) return;
   state.slot = b.dataset.slot; renderBuildPanels(); renderOverlay(); sfx.blip();
+});
+
+// On the bench: hovering a part or its callout highlights it, clicking opens its slot.
+function openSlot(slot) { state.slot = slot; renderBuildPanels(); renderOverlay(); setFocus(slot); sfx.blip(); }
+stage.addEventListener("pointermove", e => {
+  if (state.step !== "build" || dragging || e.pointerType === "touch") return;
+  const slot = e.target.closest?.(".callout")?.dataset.slot ?? (e.target.closest?.(".socket") ? null : partAt(e));
+  setFocus(slot);
+  stage.style.cursor = slot ? "pointer" : "";
+});
+stage.addEventListener("pointerleave", () => { if (state.step === "build") { setFocus(null); stage.style.cursor = ""; } });
+stage.addEventListener("click", e => {
+  if (state.step !== "build" || e.target.closest?.(".socket")) return;
+  const slot = e.target.closest?.(".callout")?.dataset.slot ?? partAt(e);
+  if (slot) openSlot(slot);
 });
 
 // Part cards: click to fit, or drag onto the stage.
@@ -346,8 +432,9 @@ const app = {
   get fit() { return fit; }, get lay() { return lay; }, reducedMotion, renderSound: () => renderSound(),
   goToSlot(slot) { state.slot = slot; if (state.step !== "build") setStep("build"); else renderBuildPanels(); flashSlot(slot); renderOverlay(); },
 };
+narrow.addEventListener("change", renderGun);
 const skin = createSkin(app);
 const range = createRange(app);
 renderSound();
 render();
-if (!state.decals.length && state.step === "build") toast("Pick a barrel and a magazine, then pull the trigger", "ok", 4000);
+if (state.step === "build" && !computeStats(state.build).complete) toast("Pick a barrel and a magazine, then pull the trigger", "ok", 4000);

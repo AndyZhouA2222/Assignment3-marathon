@@ -4,7 +4,7 @@ A Marathon-style weapon bench in the browser. Snap a gun together from parts, co
 
 ![Gunsmith walkthrough: building a rifle, adding decals and wear, firing at the range and reloading](docs/demo.gif)
 
-**Live version:** https://andyzhoua2222.github.io/marathon/ (GitHub Pages, served from `main`).
+**Live version:** https://andyzhoua2222.github.io/Assignment3-marathon/ (GitHub Pages, deployed from `main`).
 A longer recording is in [`docs/demo.webm`](docs/demo.webm).
 
 ## The idea
@@ -23,13 +23,13 @@ The loop is **pick a part → it snaps on → the numbers, sound and feel change
 
 | Step | You do | The bench responds |
 |---|---|---|
-| **01 Build** | Pick a slot, then click or drag a part card onto the gun | The part slides into its socket with a clack. The three stat bars preview the change in green and orange while you hover, and the readout words (Report, Tone, Kick, Recovery) update. Parts that don't fit stay visible but greyed, with the reason. |
-| **02 Skin** | Pick a decal from the library (or type a callsign), click the gun to stick it, drag it around; choose a paint finish and drag the wear slider | Decals are clipped to the gun's silhouette. Wear chips paint off the edges to show bare metal, adds grime and scratches, and the decals wear with the paint. |
+| **01 Build** | Pick a slot, then click or drag a part card onto the gun | The part slides into its socket with a clack. Every fitted part is labelled on the bench with what it adds to Firepower, Accuracy and Handling, and the slot list shows the same. Hovering a part, its label or its slot lights that part up and shows its share on the stat bars; clicking it opens its slot. While you hover a part card, the bars preview the change in green and orange and the readout words (Report, Tone, Kick, Recovery) update. Parts that don't fit stay visible but greyed, with the reason. |
+| **02 Skin** | Apply a layout (Runner, Hazard, Courier, Serial) or click decals in the library, or type a callsign; pick a position for the selected decal or drag it; choose a paint finish and drag the wear slider | A new decal lands on a free flat area of the gun, sized to fit. The position buttons (stock, receiver rear, receiver, receiver front, barrel, optic, magazine, foregrip) list the areas the current build has and outline each one on hover. Decals are clipped to the gun's silhouette. Wear chips the paint to show bare metal, adds grime and scratches, and the decals wear with the paint. |
 | **03 Fire** | Aim over the lane and hold the mouse button or Space; press R to reload | Shots land on the target with spread, sway and muzzle climb from the stats. The gun kicks back on a spring, casings fly, the counter drops, and an empty magazine gives a report of shots, hits, damage and group size. |
 
 You can pull the trigger in any step. Firing an unfinished gun jams and takes you to the missing slot.
 
-**Going back, resetting, stopping:** the step buttons (or keys 1, 2, 3) move freely between steps without losing anything. Every slot has a *None* card to take a part off. *Reset* (click twice) clears the bench, *Clear all decals* (click twice) clears the skin, Delete removes the selected decal and Esc cancels a decal you are about to place. *Sound on/off* (or M) mutes. The bench is saved in the browser, so a reload brings it back.
+**Going back, resetting, stopping:** the step buttons (or keys 1, 2, 3) move freely between steps without losing anything. Every slot has a *None* card to take a part off. *Reset* (click twice) clears the bench, *Clear all decals* (click twice) clears the skin, Delete removes the selected decal and Esc deselects it. Applying a layout over your own decals asks for a second click. *Sound on/off* (or M) mutes. The bench is saved in the browser, so a reload brings it back.
 
 ### How the three stats become sound and feel
 
@@ -52,8 +52,8 @@ Holding the mouse button on the range calls `press()` in [`src/range.js`](src/ra
 It is a static site with no build step and no runtime packages. Browsers block JavaScript modules on `file://` pages, so serve the folder with any static server and open the address it prints. With Python 3 (built into macOS and most Linux):
 
 ```sh
-git clone https://github.com/AndyZhouA2222/marathon.git
-cd marathon
+git clone https://github.com/AndyZhouA2222/Assignment3-marathon.git
+cd Assignment3-marathon
 python3 -m http.server 8000
 # open http://localhost:8000/
 ```
@@ -72,7 +72,7 @@ Use a current desktop Chrome, Edge, Firefox or Safari. The page loads its typefa
 ### Tests and screenshots (optional, for development)
 
 ```sh
-npm test            # Node 18+: 19 tests for the part rules, stat model and feel mapping (no install needed)
+npm test            # Node 18+: 23 tests for the part rules, stat model, feel mapping and decal positions (no install needed)
 npm install         # only for the screenshot tool (playwright-core)
 npm run shots       # rewrites docs/*.png and docs/demo.gif; needs Chrome and ffmpeg
 ```
@@ -85,7 +85,7 @@ The part outlines in `src/data/traced-shapes.js` are generated from weapon rende
 python3 tools/trace/trace.py path/to/renders --preview out/trace   # rewrites src/data/traced-shapes.js
 ```
 
-For each weapon the script flips the render so the muzzle points right, levels it, cuts it into the parts listed in the config, simplifies each outline to a polygon and scales it to bench units. `--preview` saves an overlay per weapon showing where it cut.
+For each weapon the script flips the render so the muzzle points right, levels it, cuts it into the parts listed in the config, simplifies each outline to a polygon and scales it to bench units. It also keeps the long, straight edges inside each part as panel lines, and finds the largest flat rectangle in each part, which becomes that part's decal position. `--preview` saves an overlay per weapon showing where it cut.
 
 ## Controls
 
@@ -97,7 +97,7 @@ For each weapon the script flips the render so the muzzle points right, levels i
 | M | Sound on or off |
 | Delete | Remove the selected decal |
 | Arrow keys | Nudge the selected decal (Shift for bigger steps) |
-| Esc | Cancel placing a decal, deselect |
+| Esc | Deselect the decal |
 
 Part cards and the trigger button also work with Tab and Enter.
 
@@ -108,7 +108,8 @@ Part cards and the trigger button also work with Tab and Enter.
 - **Repeated clicks:** pressing faster than the gun's fire rate is ignored with a "Cycling" note, presses during a reload are ignored, and reloading a full magazine says so. Reset and Clear all ask for a second click.
 - **Empty magazine:** dry fire, "Empty · press R", and a magazine report.
 - **Empty or invalid text decal:** an inline error with a shake; nothing is added. Decals are capped at 30, with a message.
-- **Clicking off the gun with a decal:** "Decals only stick to the gun."
+- **A layout over decals you placed:** the layout button asks for a second click before replacing them.
+- **A build without a part:** decal positions only list areas the current build has; layouts skip positions it lacks.
 - **No sound available** (no Web Audio, or blocked): a one-time notice; everything else keeps working and the sound button shows "No sound".
 - **Storage blocked or saved data damaged** (private mode, an old save): the bench starts fresh instead of failing.
 - **Opened from the file system or with JavaScript off:** a page explaining how to serve it.
@@ -139,11 +140,11 @@ docs/                      screenshots and recordings
 
 | Build | Skin | Fire |
 |---|---|---|
-| ![Build step: slots on the left, the assembled rifle, the part tray with stat chips](docs/build.png) | ![Skin step: decal library, decals and wear on the rifle, finish and decal controls](docs/skin.png) | ![Fire step: the range target with hit markers, ammo counter and range readout](docs/fire.png) |
+| ![Build step: slots with each part's stat changes, the rifle with a label on every part, the part tray](docs/build.png) | ![Skin step: layouts and the decal library, decals on the rifle, position buttons and decal controls](docs/skin.png) | ![Fire step: the range target with hit markers, ammo counter and range readout](docs/fire.png) |
 
 ## Known limitations
 
-- **Part shapes are flat traced outlines.** Each part is traced from a render of the weapon it comes from and simplified to a polygon, then drawn in two tones (paint, and dark polymer for grips, magazines and sights). Panel lines and small details inside the outline are not drawn. Parts keep the attachment point of their own weapon, so a part from a much larger or smaller gun can look oversized on another frame. Two pieces are drawn by hand: the iron sights (they stretch to the rail) and the Magnum's grip magazine (only its base plate shows).
+- **Part shapes are flat traced outlines.** Each part is traced from a render of the weapon it comes from and simplified to a polygon, then drawn in two tones (paint, and dark polymer for grips, magazines and sights). Panel lines are the long, straight edges the tracing tool finds inside each render, so a few marks from the skins' printed artwork slip through and small details are missing. Parts keep the attachment point of their own weapon, so a part from a much larger or smaller gun can look oversized on another frame. Two pieces are drawn by hand: the iron sights (they stretch to the rail) and the Magnum's grip magazine (only its base plate shows).
 - **The WSTR shotgun and the Magnum pistol have no stock mount**, because the renders show none.
 - **Only the frames' base numbers are real data** (a MarathonDB snapshot from 29 October 2026). The part modifiers are invented to make the trade-offs readable. MarathonDB has no accuracy value for the WSTR shotgun, so 35 is an estimate.
 - **The sound is synthesised**, not recorded. It is built to make differences between builds obvious, not to sound like the real game. Phones on silent may mute it.

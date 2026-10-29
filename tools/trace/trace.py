@@ -3,7 +3,8 @@
 The renders are not part of this repository. The folder should hold one sub-folder per weapon with the
 transparent PNG/WebP renders named in config.json. The script flips each render so the muzzle points
 right, rotates it level, cuts it into the parts listed in config.json, simplifies each outline to a
-polygon and writes src/data/traced-shapes.js. A frame's `dark` block is everything below its belly line.
+polygon, keeps the long straight panel lines inside it, finds its largest flat rectangle (the decal
+position) and writes src/data/traced-shapes.js. A frame's `dark` block is everything below its belly line.
 With --preview <folder> it also saves an overlay per weapon.
 Needs numpy, opencv-python-headless and Pillow.
 """
@@ -57,13 +58,40 @@ def clean(m, close=5, min_frac=0.03, hole_min=600):
     return keep.astype(bool)
 
 
+def smooth(m, k=7):
+    """Rounds off the stair steps and anti-aliasing fuzz of the render's edge before tracing."""
+    return cv2.GaussianBlur(m.astype(np.float32), (k, k), 0) > 0.5
+
+
+def zones(m, count=1, min_frac=0.3):
+    """Largest axis-aligned rectangles inside a part (decal areas): [[x, y, w, h], ...] in pixels."""
+    free, out = m.copy(), []
+    for _ in range(count):
+        best, hgt = (0, 0, 0, 0, 0), np.zeros(free.shape[1], int)
+        for y in range(free.shape[0]):
+            hgt = np.where(free[y], hgt + 1, 0)
+            stack = []  # largest rectangle in a histogram, row by row
+            for x in range(len(hgt) + 1):
+                h = hgt[x] if x < len(hgt) else 0
+                start = x
+                while stack and stack[-1][1] >= h:
+                    start, sh = stack.pop()
+                    if sh * (x - start) > best[0]: best = (sh * (x - start), start, y - sh + 1, x - start, sh)
+                stack.append((start, h))
+        a, x, y, w, h = best
+        if not a or (out and a < min_frac * out[0][2] * out[0][3]): break
+        out.append([x, y, w, h])
+        free[max(0, y - 4):y + h + 4, max(0, x - 4):x + w + 4] = False
+    return out
+
+
 def signed_area(p):
     return 0.5 * sum(p[i][0] * p[(i + 1) % len(p)][1] - p[(i + 1) % len(p)][0] * p[i][1] for i in range(len(p)))
 
 
 def outlines(m, eps, hole_min):
     """Simplified polygons. Outlines run clockwise and holes anticlockwise, so holes stay open under the nonzero rule."""
-    cs, hier = cv2.findContours(m.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    cs, hier = cv2.findContours(smooth(m).astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     out = []
     for c, h in zip(cs, hier[0] if hier is not None else []):
         hole = h[3] != -1
@@ -75,9 +103,31 @@ def outlines(m, eps, hole_min):
     return out
 
 
-def to_path(polys, ox, oy, s):
+def to_path(polys, ox, oy, s, closed=True):
     f = lambda v: f"{round(v, 1):g}"
-    return "".join("M" + "L".join(f"{f((x - ox) * s)} {f((y - oy) * s)}" for x, y in p) + "Z" for p in polys)
+    return "".join("M" + "L".join(f"{f((x - ox) * s)} {f((y - oy) * s)}" for x, y in p) + ("Z" if closed else "") for p in polys)
+
+
+def edge_map(rgba):
+    """Strong edges inside the render (panel lines, steps between surfaces), with fine texture smoothed away first."""
+    g = cv2.bilateralFilter(cv2.cvtColor(np.ascontiguousarray(rgba[..., :3]), cv2.COLOR_RGB2GRAY), 9, 40, 9)
+    return cv2.Canny(g, 40, 110)
+
+
+def panel_lines(edges, m, eps=2.5):
+    """Long, mostly straight edge runs inside a part. Short or wiggly runs (printed text, skin artwork) are dropped."""
+    e = edges.copy()
+    e[~cv2.erode(m.astype(np.uint8), np.ones((11, 11), np.uint8)).astype(bool)] = 0
+    cs, _ = cv2.findContours(e, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    out = []
+    for c in cs:
+        if cv2.arcLength(c, False) < 90: continue
+        p = cv2.approxPolyDP(c, eps, False)[:, 0, :].astype(float)
+        x, y, w, h = cv2.boundingRect(p.astype(np.int32))
+        seg = np.hypot(*np.diff(p, axis=0).T)
+        if max(w, h) < 50 or len(p) > 14 or seg.mean() < 14: continue
+        out.append(p.tolist())
+    return out
 
 
 def main():
@@ -100,18 +150,23 @@ def main():
             regions[pid] = clean(pm & sil & ~drop, close=3, min_frac=0.05, hole_min=hm)
             used |= pm
         frame = clean(sil & ~used, close=3, min_frac=0.05, hole_min=hm)
+        edges = edge_map(rgba)
 
-        def build(m, ox, oy, belly=None):
-            d = {"base": to_path(outlines(m, eps, hm), ox, oy, s)}
+        def build(m, ox, oy, belly=None, count=1):
+            d = {"base": to_path(outlines(m, eps, hm), ox, oy, s), "lines": to_path(panel_lines(edges, m), ox, oy, s, closed=False)}
+            top = m.copy()
             if belly is not None:
                 # Everything below the receiver's belly line (grip, trigger guard, lower housing) is the dark polymer block.
-                low = m.copy(); low[:belly] = False
+                low = m.copy(); low[:belly] = False; top[belly:] = False
                 d["dark"] = to_path(outlines(clean(low, close=0, min_frac=0.02, hole_min=hm), eps, hm), ox, oy, s)
+            # Decal areas: found on a quarter-size copy shrunk away from the edges, so decals keep a margin.
+            q = cv2.erode(top.astype(np.uint8), np.ones((9, 9), np.uint8))[::4, ::4].astype(bool)
+            d["zones"] = [[round((4 * x - ox) * s, 1), round((4 * y - oy) * s, 1), round(4 * w * s, 1), round(4 * h * s, 1)] for x, y, w, h in zones(q, count)]
             return d
         sc = lambda v: round(v * s, 1)
         if c.get("frame"):
             ys, xs = np.nonzero(frame); fx, fy = xs.min(), ys.min()
-            fr = build(frame, fx, fy, c.get("belly"))
+            fr = build(frame, fx, fy, c.get("belly"), count=2)
             fr["sockets"] = {n: None if p is None else [sc(p[0] - fx), sc(p[1] - fy)] + ([sc(p[2])] if len(p) > 2 else []) for n, p in c["sockets"].items()}
             out["frame"][c["frame"]] = fr
         for pid, r in c.get("parts", {}).items():
@@ -133,7 +188,7 @@ def main():
     js = os.path.join(ROOT, "src", "data", "traced-shapes.js")
     with open(js, "w") as f:
         f.write("// Generated by tools/trace/trace.py from MarathonDB weapon renders (the renders are not included).\n")
-        f.write("// Outlines are simplified polygons in bench units; a frame's `dark` block is its lower housing below the belly line. Do not edit by hand.\n")
+        f.write("// Outlines and panel lines are simplified polygons in bench units; a frame's `dark` block is its lower housing below the belly line;\n// `zones` are decal positions [x, y, w, h]. Do not edit by hand.\n")
         f.write("export const TRACED = " + json.dumps(out, separators=(",", ":")).replace('},"', '},\n"') + ";\n")
     print("wrote", os.path.relpath(js, ROOT), sum(len(v) for v in out.values()), "shapes")
 

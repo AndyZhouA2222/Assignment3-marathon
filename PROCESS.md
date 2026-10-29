@@ -22,6 +22,10 @@ The one interaction I cared about most was the moment after fitting a part: you 
 
 The first traced version also split each part into light and dark areas by brightness. That copied the skins' artwork and printed text into the shapes and left them blotchy, so I replaced it with one simple rule: the lower housing below the receiver's belly line is dark polymer. Looking at every frame rebuilt from its own parts showed two more problems, which I fixed in the config: the Demolition's skid foregrip floated below and in front of the gun, and the Magnum had no barrel of its own, so a borrowed SMG barrel stuck out of its slide. Its front end is now its own SN-06 Snub Nose barrel.
 
+**Cleaner surface, and numbers tied to the parts.** Looking at the first traced version on the bench, I found it ugly. Every part had a speckled ring round its outline: the edge-wear effect, which even at low wear read as a dirty outline. I removed that ring; the bench now starts factory new, and wear only chips paint inside the surface. Parts got soft top-to-bottom shading, a dark seam round each one, and panel lines that the tracing tool takes from the long straight edges inside each render. I also could not see which part was responsible for which number, so every fitted part now has a label on the bench with its Firepower, Accuracy and Handling change, the slot list repeats it, and hovering a part, its label or its slot lights the part up and shows its share on the stat bars.
+
+**Decals that look designed, with positions.** The decal library was 18 random designs that changed with every shuffle, and placing one meant guessing a spot by clicking the gun. Many of the random designs looked poor on a weapon. I picked 23 designs from the decal kit and drew a hazard band, 24 in all, in three groups (marks, codes, bands). Clicking one now puts it on a free flat area of the gun at a size that fits. The position buttons move the selected decal to the stock, receiver rear or front, barrel, optic, magazine or foregrip; those areas are the largest rectangles the tracing tool finds inside each part. Four layouts (Runner, Hazard, Courier, Serial) dress the whole gun in one click.
+
 **Decals as black-and-white masks.** The decal generator first made coloured decals with an acid-green accent bar. I mainly use decals in 3D software, so I changed it to output pure black and white. In Gunsmith that turned out useful: each decal is a mask, and the colour is chosen on the bench, so one library works in any colour and wears off with the paint.
 
 ## A code change from testing
@@ -56,10 +60,11 @@ I used **Claude Code** (Anthropic's coding assistant) throughout:
 
 - The first plan, built with the AI, simulated every MarathonDB stat. I redirected it to focus on the weapons' shapes and the three headline stats driving sound and feel (see "How the design changed").
 - The decal generator's coloured output with a green accent bar was its default. I had it changed to pure black-and-white masks because that is what I need for 3D work.
+- The edge-wear ring round every part was the default wear effect. I had it removed because it made the gun look dirty and outlined (see "Cleaner surface").
 - The first traced parts were coloured by the brightness of the render. I rejected that because it copied the skins' artwork into the parts (see "Parts traced from the real weapons").
 
 ## What I would do next
 
-- Add panel lines and small details inside the traced outlines, and scale parts that come from a much bigger or smaller gun.
+- Clean up the traced panel lines by hand, and scale parts that come from a much bigger or smaller gun.
 - Let a part's decals and wear show on both sides of the gun.
 - Try the bench on a phone and with more people.
