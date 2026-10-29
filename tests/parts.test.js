@@ -1,4 +1,4 @@
-// Run with: node --test tests/
+// Run with: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PARTS, part, canAttach, attach, computeStats, previewDelta, EMPTY_BUILD, DEFAULT_BUILD } from "../src/parts.js";
@@ -29,6 +29,15 @@ test("a magazine must hold the ammo the frame feeds", () => {
   assert.equal(r.ok, false);
   assert.match(r.reason, /Light rounds/);
   assert.match(r.reason, /Heavy rounds/);
+});
+
+test("traced frames have every socket; only the shotgun and the pistol lack a stock mount", () => {
+  for (const f of PARTS.frame) {
+    const s = f.sockets;
+    for (const name of ["muzzle", "mag", "rail", "trigger"]) assert.ok(Array.isArray(s[name]), `${f.id} has no ${name} socket`);
+    assert.equal(s.rail.length, 3, `${f.id} rail needs x, y and length`);
+    assert.equal(s.stock === null, f.id === "wstr" || f.id === "magnum", `${f.id} stock mount`);
+  }
 });
 
 test("the pistol frame has no stock mount", () => {

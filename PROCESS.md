@@ -18,6 +18,10 @@ The one interaction I cared about most was the moment after fitting a part: you 
 
 **A jam instead of a disabled trigger.** A greyed-out trigger on an unfinished gun would give no feedback. Pulling it makes a dry click, says "Jammed · no barrel", and jumps to the missing slot. The trigger is always the same big button, so the player always knows where to go.
 
+**Parts traced from the real weapons.** The first part library was simplified shapes drawn in code, and they did not read as Marathon guns. I collected weapon renders from MarathonDB and had a script trace them (`tools/trace/`): each render is levelled, cut into frame, barrel, magazine, sight, foregrip and stock along lines I set in `tools/trace/config.json`, and each piece is simplified to a polygon. Thirteen weapons give 8 frames and 31 parts, and each part keeps the attachment point of the gun it came from, so a weapon rebuilt from its own parts looks like the render. The renders stay out of the repository; only the traced outlines are committed.
+
+The first traced version also split each part into light and dark areas by brightness. That copied the skins' artwork and printed text into the shapes and left them blotchy, so I replaced it with one simple rule: the lower housing below the receiver's belly line is dark polymer. Looking at every frame rebuilt from its own parts showed two more problems, which I fixed in the config: the Demolition's skid foregrip floated below and in front of the gun, and the Magnum had no barrel of its own, so a borrowed SMG barrel stuck out of its slide. Its front end is now its own SN-06 Snub Nose barrel.
+
 **Decals as black-and-white masks.** The decal generator first made coloured decals with an acid-green accent bar. I mainly use decals in 3D software, so I changed it to output pure black and white. In Gunsmith that turned out useful: each decal is a mask, and the colour is chosen on the bench, so one library works in any colour and wears off with the paint.
 
 ## A code change from testing
@@ -41,6 +45,7 @@ The same walkthrough showed two layout problems that I fixed: the long magazine 
 I used **Claude Code** (Anthropic's coding assistant) throughout:
 
 - **Research:** finding MarathonDB's public API and taking the weapon stats snapshot (`src/data/marathondb-weapons.js`).
+- **Tracing:** the script that turns the weapon renders into part outlines (`tools/trace/trace.py`). I chose the weapons and checked each traced build by eye; Claude Code proposed where to cut each render and I asked for changes where a part looked wrong.
 - **Code:** most of the JavaScript, CSS and the Web Audio synthesis were written by Claude Code from my descriptions, then run and checked in a browser. I reviewed the behaviour, steered the design and asked for changes.
 - **Tests and checks:** the `node:test` tests in `tests/`, and the Playwright scripts that click through the whole flow and take the screenshots.
 - **Writing:** first drafts of the README and this file.
@@ -51,9 +56,10 @@ I used **Claude Code** (Anthropic's coding assistant) throughout:
 
 - The first plan, built with the AI, simulated every MarathonDB stat. I redirected it to focus on the weapons' shapes and the three headline stats driving sound and feel (see "How the design changed").
 - The decal generator's coloured output with a green accent bar was its default. I had it changed to pure black-and-white masks because that is what I need for 3D work.
+- The first traced parts were coloured by the brightness of the render. I rejected that because it copied the skins' artwork into the parts (see "Parts traced from the real weapons").
 
 ## What I would do next
 
-- Redraw the parts from reference screenshots of the game's weapons, so each part reads as a recognisable piece of a real Marathon gun.
+- Add panel lines and small details inside the traced outlines, and scale parts that come from a much bigger or smaller gun.
 - Let a part's decals and wear show on both sides of the gun.
 - Try the bench on a phone and with more people.

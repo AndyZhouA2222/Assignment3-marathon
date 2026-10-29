@@ -132,11 +132,13 @@ export function gunMarkup(build, opts = {}) {
   // Every element of a part carries data-slot/x/y so the interface can slide it (snap-in, magazine drop).
   const tr = p => `data-slot="${p.slot}" data-x="${p.x}" data-y="${p.y}" transform="translate(${p.x} ${p.y})"`;
 
+  // Paths fill with the nonzero rule: holes (trigger guards, stock cut-outs) run the opposite way round,
+  // so a colour block drawn over a part never punches a hole in the metal underneath.
   let silhouette = "", clip = "", metal = "", paint = "", lines = "";
   for (const p of lay.placed) {
     const all = p.shape.fills.map(f => f.d).join("");
     silhouette += `<path ${tr(p)} d="${all}"/>`;
-    clip += `<path ${tr(p)} d="${all}" fill-rule="evenodd"/>`;
+    clip += `<path ${tr(p)} d="${all}"/>`;
     metal += `<path ${tr(p)} d="${all}"/>`;
     paint += `<g class="part part-${p.slot}" ${tr(p)}>` + p.shape.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("") + `</g>`;
     if (p.slot === "frame") {
@@ -150,8 +152,8 @@ export function gunMarkup(build, opts = {}) {
   const scratches = SCRATCHES.slice(0, Math.round(w * SCRATCHES.length)).map(([a, b, c, d]) => `M${n(a)} ${n(b)}L${n(c)} ${n(d)}`).join("");
 
   const svg = `<defs><clipPath id="${P}sil">${clip}</clipPath>${wearDefs(P, w, silhouette)}</defs>` +
-    `<g class="metal" fill="${METAL}" fill-rule="evenodd">${metal}</g>` +
-    `<g class="paint" mask="url(#${P}wear)" fill-rule="evenodd">${paint}<g class="decals" clip-path="url(#${P}sil)">${decals}</g></g>` +
+    `<g class="metal" fill="${METAL}">${metal}</g>` +
+    `<g class="paint" mask="url(#${P}wear)">${paint}<g class="decals" clip-path="url(#${P}sil)">${decals}</g></g>` +
     `<g class="lines" fill="none" stroke="${fin.line}" stroke-width="1.6">${lines}</g>` +
     (w > 0.01 ? `<g clip-path="url(#${P}sil)"><rect x="${n(box.x0)}" y="${n(box.y0)}" width="${n(box.x1 - box.x0)}" height="${n(box.y1 - box.y0)}" filter="url(#${P}grime)" opacity="${n(0.7 * w)}"/>` +
       `<path d="${scratches}" stroke="#D9DAD2" stroke-opacity=".55" stroke-width="1" fill="none"/></g>` : "");
@@ -166,7 +168,7 @@ export function partMarkup(slot, id, finish = "bone", railLen = 150) {
   const color = tone => (tone === "p" || tone === "s" || tone === "a" ? fin[tone] : FIXED[tone]);
   const acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   for (const f of sh.fills) pathBox(f.d, 0, 0, acc);
-  const svg = `<g fill-rule="evenodd">${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
+  const svg = `<g>${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
     (sh.lines.length ? `<path d="${sh.lines.join("")}" fill="none" stroke="${fin.line}" stroke-width="1.6"/>` : "");
   return { svg, box: acc };
 }
