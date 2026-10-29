@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gunsmith · Marathon-style weapon bench</title>
+  <meta name="description" content="Snap weapon parts together, cover the gun in Marathon-style decals and wear, then pull the trigger to hear and feel the result.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,400..800&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;800&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="css/gunsmith.css">
+</head>
+<body>
+  <!-- Opening this file straight from disk blocks the JavaScript modules, so explain how to serve it. -->
+  <div id="file-warning" class="file-warning" hidden>
+    <p class="eyebrow">// Cannot start from a file</p>
+    <h2>Serve the folder first</h2>
+    <p>Browsers block JavaScript modules on <code>file://</code> pages. In a terminal, inside this folder, run:</p>
+    <pre>python3 -m http.server 8000</pre>
+    <p>then open <a href="http://localhost:8000/">http://localhost:8000/</a>. The README lists other ways.</p>
+  </div>
+  <script>if (location.protocol === "file:") document.getElementById("file-warning").hidden = false;</script>
+  <noscript><div class="file-warning"><h2>JavaScript is off</h2><p>Gunsmith is an interactive page and needs JavaScript.</p></div></noscript>
+
+  <header class="top">
+    <div class="brand">
+      <p class="eyebrow">// Marathon-style weapon bench</p>
+      <h1>Gunsmith</h1>
+    </div>
+    <nav class="steps" aria-label="Steps">
+      <button class="step" data-step="build" aria-pressed="true"><span>01</span>Build</button>
+      <button class="step" data-step="skin" aria-pressed="false"><span>02</span>Skin</button>
+      <button class="step" data-step="fire" aria-pressed="false"><span>03</span>Fire</button>
+    </nav>
+    <div class="top-actions">
+      <button id="sound-btn" class="ghost" aria-pressed="true">Sound on</button>
+      <button id="reset-btn" class="ghost">Reset</button>
+    </div>
+  </header>
+
+  <main class="bench" data-step="build">
+    <aside class="panel left" aria-label="Controls">
+      <section data-for="build">
+        <p class="eyebrow">// Slots</p>
+        <ol id="slot-list" class="slot-list"></ol>
+        <p class="hint">Pick a slot, then click or drag a part onto the gun. <b>Frame, barrel and magazine</b> are needed to fire.</p>
+      </section>
+      <section data-for="skin">
+        <p class="eyebrow">// Decal library <button id="shuffle-btn" class="mini">Shuffle</button></p>
+        <div id="decal-lib" class="decal-lib"></div>
+        <form id="text-form" class="text-form" autocomplete="off">
+          <label for="text-input" class="eyebrow">// Text decal</label>
+          <div class="row"><input id="text-input" maxlength="16" placeholder="TYPE A CALLSIGN"><select id="text-variant" aria-label="Lettering"></select></div>
+          <button class="mini" type="submit">Make decal</button>
+          <p id="text-error" class="field-error" role="alert"></p>
+        </form>
+      </section>
+      <section data-for="fire">
+        <p class="eyebrow">// Range</p>
+        <div class="seg" id="distance-seg" role="group" aria-label="Target distance"></div>
+        <dl id="range-readout" class="spec"></dl>
+        <p class="hint">Move the mouse over the lane to aim. Hold the mouse button or <b>Space</b> to fire, <b>R</b> to reload.</p>
+      </section>
+    </aside>
+
+    <section class="stage-wrap">
+      <div class="corner tl" id="corner-tl">BENCH 03 // FRAME —</div>
+      <div class="corner tr">v1.0 // 10.29.2026</div>
+      <svg id="stage" viewBox="0 0 1000 520" role="img" aria-label="Weapon on the bench"></svg>
+      <div id="hud" class="hud" hidden>
+        <div class="ammo"><b id="ammo-now">0</b><span id="ammo-cap">/ 0</span></div>
+        <div id="ammo-state" class="ammo-state"></div>
+      </div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </section>
+
+    <aside class="panel right" aria-label="Weapon readout">
+      <p class="eyebrow">// Weapon readout <span id="build-name" class="build-name"></span></p>
+      <div id="stats" class="stats"></div>
+      <dl id="feel" class="feel"></dl>
+      <dl id="specs" class="spec"></dl>
+      <section data-for="skin" class="skin-controls">
+        <p class="eyebrow">// Finish</p>
+        <div class="seg" id="finish-seg" role="group" aria-label="Paint finish"></div>
+        <p class="eyebrow">// Wear <output id="wear-out"></output></p>
+        <input id="wear" type="range" min="0" max="100" value="15" aria-label="Wear">
+        <div id="decal-edit" class="decal-edit" hidden>
+          <p class="eyebrow">// Selected decal</p>
+          <label>Size <input id="d-size" type="range" min="12" max="220" value="60"></label>
+          <label>Rotate <input id="d-rot" type="range" min="-180" max="180" value="0"></label>
+          <div class="seg" id="tint-seg" role="group" aria-label="Decal colour"></div>
+          <div class="row"><button id="d-flip" class="mini">Flip</button><button id="d-front" class="mini">To front</button><button id="d-del" class="mini danger">Remove</button></div>
+        </div>
+        <button id="clear-decals" class="mini">Clear all decals</button>
+      </section>
+      <button id="trigger" class="trigger"><span>Pull trigger</span><small>Space</small></button>
+    </aside>
+
+    <section class="tray" data-for="build" aria-label="Parts">
+      <p class="eyebrow">// <span id="tray-title">Parts</span></p>
+      <div id="tray" class="tray-cards"></div>
+    </section>
+  </main>
+
+  <footer class="keys">
+    <span><b>1 2 3</b> steps</span><span><b>Space</b> fire</span><span><b>R</b> reload</span><span><b>M</b> sound</span><span><b>Del</b> remove decal</span><span><b>Esc</b> cancel</span>
+    <span class="credit">Weapon stats: <a href="https://marathondb.gg/weapons/" target="_blank" rel="noopener">MarathonDB</a> · fan project, not affiliated with Bungie</span>
+  </footer>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

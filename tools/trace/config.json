@@ -1,0 +1,36 @@
+{
+ "_about": "Which render each weapon is traced from, and how each render is cut into parts. Coordinates are pixels in the deskewed, cropped render (see trace.py). 'len' is the weapon's overall length in bench units; 'origin' is where a part attaches; 'belly' is the y below which a frame is drawn in the dark tone; 'drop' areas are left out (sights that would collide with optics, odd braces).",
+ "renders": {
+  "m77": {"file": "M77 ASSAULT RIFLE/Vox Nocturna__deluxe__full.webp"},
+  "brrt": {"file": "BRRT SMG/Blue Sky__deluxe__full.webp"},
+  "demolition": {"file": "DEMOLITION HMG/Night Ops__deluxe__full.webp"},
+  "hardline": {"file": "HARDLINE PR/Construction__deluxe__full.webp"},
+  "wstr": {"file": "WSTR COMBAT SHOTGUN/Achromatic Rush__deluxe__full.webp"},
+  "zeus": {"file": "V00 ZEUS RG/Night Ops__deluxe__full.webp", "angle": 9.6},
+  "magnum": {"file": "MAGNUM MC/Crimson Bliss__deluxe__full.webp"},
+  "longshot": {"file": "LONGSHOT/Vox Night Ops__deluxe__full.webp", "angle": 13.5},
+  "retaliator": {"file": "RETALIATOR LMG/Cyber Red__deluxe__full.webp"},
+  "copperhead": {"file": "COPPERHEAD RF/NUTAC _SMG__deluxe__full.webp"},
+  "bully": {"file": "BULLY SMG/Aqua Destruct__deluxe__full.webp"},
+  "misriah": {"file": "MISRIAH 2442/Monoclast__deluxe__full.webp"},
+  "lookout": {"file": "V66 LOOKOUT/Vox Nocturna__deluxe__full.webp"},
+  "br33": {"file": "BR33 VOLLEY RIFLE/Anti Caution__deluxe__full.webp"},
+  "v75": {"file": "V75 SCAR/Aqua Stellar__deluxe__full.webp"},
+  "repeater": {"file": "REPEATER HPR/Redline__deluxe__full.webp"}
+ },
+ "weapons": {
+  "m77": {"src": "m77", "len": 760, "frame": "m77", "belly": 300, "sockets": {"muzzle": [1210, 225], "mag": [760, 300], "rail": [430, 128, 760], "stock": [378, 225], "trigger": [588, 322]}, "drop": [[400, 30, 530, 128], [1225, 0, 1420, 122], [430, 575, 690, 780], [690, 630, 1010, 780]], "parts": {"bk4": {"slot": "stock", "poly": [0, 0, 378, 740], "origin": [378, 225]}, "cb14": {"slot": "barrel", "poly": [1210, 120, 1600, 345], "origin": [1210, 225], "tip": 370, "under": [70, 105]}, "lt24": {"slot": "magazine", "poly": [690, 300, 1010, 630], "origin": [760, 300]}}},
+  "brrt": {"src": "brrt", "len": 600, "frame": "brrt", "belly": 300, "sockets": {"muzzle": [1160, 210], "mag": [1150, 470], "rail": [890, 95, 330], "stock": [505, 210], "trigger": [880, 372]}, "parts": {"sk1": {"slot": "stock", "poly": [0, 0, 505, 781], "origin": [505, 210]}, "rd1": {"slot": "optic", "poly": [985, 0, 1230, 92], "origin": [1100, 92]}, "lt35": {"slot": "magazine", "poly": [1030, 470, 1270, 781], "origin": [1150, 470]}, "sb09": {"slot": "barrel", "poly": [1160, 92, 1270, 350], "origin": [1160, 210], "tip": 92, "under": null}}},
+  "demolition": {"src": "demolition", "len": 900, "frame": "demolition", "belly": 345, "sockets": {"muzzle": [1300, 200], "mag": [585, 300], "rail": [600, 80, 680], "stock": [178, 200], "trigger": [700, 350]}, "drop": [[370, 0, 595, 78]], "parts": {"hp3": {"slot": "stock", "poly": [0, 0, 178, 520], "origin": [178, 200]}, "hs22": {"slot": "barrel", "poly": [1300, 40, 1515, 480], "origin": [1300, 200], "tip": 215, "under": [0, 145]}, "hv20": {"slot": "magazine", "poly": [455, 300, 720, 520], "origin": [585, 300]}, "sg3": {"slot": "grip", "poly": [925, 345, 1300, 480], "origin": [1300, 345]}}},
+  "hardline": {"src": "hardline", "len": 860, "frame": "hardline", "belly": 245, "sockets": {"muzzle": [1225, 190], "mag": [567, 248], "rail": [440, 126, 620], "stock": [272, 190], "trigger": [455, 285]}, "drop": [[1040, 0, 1180, 112]], "parts": {"st2": {"slot": "stock", "poly": [0, 0, 272, 470], "origin": [272, 190]}, "ms25": {"slot": "optic", "poly": [283, 50, 432, 128], "origin": [357, 128]}, "qs16": {"slot": "barrel", "poly": [1225, 135, 1590, 245], "origin": [1225, 190], "tip": 360, "under": [50, 30]}, "hv14": {"slot": "magazine", "poly": [472, 248, 662, 470], "origin": [567, 248]}}},
+  "longshot": {"src": "longshot", "len": 980, "frame": "longshot", "belly": 245, "sockets": {"muzzle": [880, 190], "mag": [518, 300], "rail": [330, 188, 520], "stock": [302, 190], "trigger": [400, 320]}, "parts": {"lp5": {"slot": "stock", "poly": [[0, 0], [225, 0], [225, 185], [302, 185], [302, 460], [0, 460]], "origin": [302, 190]}, "ls4": {"slot": "optic", "poly": [225, 0, 628, 186], "origin": [426, 186]}, "lf30": {"slot": "barrel", "poly": [880, 90, 1590, 245], "origin": [880, 190], "tip": 705, "under": [130, 25]}, "lt04": {"slot": "magazine", "poly": [415, 300, 622, 460], "origin": [518, 300]}}},
+  "wstr": {"src": "wstr", "len": 720, "frame": "wstr", "belly": 285, "sockets": {"muzzle": [1262, 140], "mag": [805, 265], "rail": [250, 45, 800], "stock": null, "trigger": [330, 330]}, "parts": {"db02": {"slot": "barrel", "poly": [1262, 0, 1530, 300], "origin": [1262, 140], "tip": 262, "under": null}, "mp02": {"slot": "magazine", "poly": [560, 265, 1050, 415], "origin": [805, 265]}}},
+  "zeus": {"src": "zeus", "len": 880, "frame": "zeus", "belly": 300, "sockets": {"muzzle": [1320, 190], "mag": [770, 300], "rail": [620, 95, 620], "stock": [150, 190], "trigger": [262, 300]}, "parts": {"zb6": {"slot": "stock", "poly": [0, 0, 150, 330], "origin": [150, 190]}, "cb2": {"slot": "optic", "poly": [315, 0, 605, 118], "origin": [460, 118]}, "vc100": {"slot": "magazine", "poly": [425, 300, 1115, 535], "origin": [770, 300]}, "rc50": {"slot": "barrel", "poly": [1320, 25, 1585, 345], "origin": [1320, 190], "tip": 255, "under": [40, 140]}}},
+  "magnum": {"src": "magnum", "len": 380, "frame": "magnum", "belly": 235, "sockets": {"muzzle": [740, 130], "mag": [372, 604], "rail": [120, 40, 560], "stock": null, "trigger": [440, 292]}, "parts": {"sn06": {"slot": "barrel", "poly": [740, 0, 870, 235], "origin": [740, 130], "tip": 120, "under": null}}},
+  "retaliator": {"src": "retaliator", "len": 820, "parts": {"lt44": {"slot": "magazine", "poly": [205, 300, 452, 592], "origin": [330, 300]}}},
+  "copperhead": {"src": "copperhead", "len": 640, "parts": {"ag1": {"slot": "grip", "poly": [985, 330, 1215, 692], "origin": [1060, 335]}}},
+  "bully": {"src": "bully", "len": 560, "parts": {"vg2": {"slot": "grip", "poly": [868, 478, 1075, 782], "origin": [972, 478]}}},
+  "misriah": {"src": "misriah", "len": 800, "parts": {"mp04": {"slot": "magazine", "poly": [835, 165, 1245, 320], "origin": [1040, 165]}}},
+  "lookout": {"src": "lookout", "len": 760, "parts": {"th16": {"slot": "optic", "poly": [318, 0, 482, 100], "origin": [400, 100]}}}
+ }
+}
