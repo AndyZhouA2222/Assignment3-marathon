@@ -4,7 +4,7 @@ A Marathon-style weapon bench in the browser. Snap a gun together from parts, co
 
 ![Gunsmith walkthrough: building a rifle, adding decals and wear, firing at the range and reloading](docs/demo.gif)
 
-**Live version:** https://andyzhoua2222.github.io/marathon/ (GitHub Pages, served from `main`).
+**Live version:** https://andyzhoua2222.github.io/Assignment3-marathon/ (GitHub Pages, deployed from `main`).
 A longer recording is in [`docs/demo.webm`](docs/demo.webm).
 
 ## The idea
@@ -52,8 +52,8 @@ Holding the mouse button on the range calls `press()` in [`src/range.js`](src/ra
 It is a static site with no build step and no runtime packages. Browsers block JavaScript modules on `file://` pages, so serve the folder with any static server and open the address it prints. With Python 3 (built into macOS and most Linux):
 
 ```sh
-git clone https://github.com/AndyZhouA2222/marathon.git
-cd marathon
+git clone https://github.com/AndyZhouA2222/Assignment3-marathon.git
+cd Assignment3-marathon
 python3 -m http.server 8000
 # open http://localhost:8000/
 ```
