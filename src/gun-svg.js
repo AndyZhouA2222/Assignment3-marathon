@@ -1,5 +1,5 @@
 // Builds the SVG markup of an assembled gun: bare metal underneath, paint and decals on top
-// (worn away by a noise mask), panel lines, grime and scratches. Returns strings, so it can be
+// (worn away by a noise mask), soft shading, part seams, grime and scratches. Returns strings, so it can be
 // used for the bench, the range and the part thumbnails alike.
 import { part } from "./parts.js";
 import { make, textVariant, binarize, PALETTES } from "./lib/decal-kit.js";
@@ -12,6 +12,10 @@ export const FINISHES = {
 };
 const FIXED = { m: "#5F605C", k: "#0E0E0E", g: "#121A22" };
 const METAL = "#77786F";
+const SEAM = "rgba(8,8,8,.9)"; // outline round every part, so parts read as separate pieces
+// Light from above: each part gets a soft highlight on top and a shadow underneath.
+const shadeDef = id => `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/>` +
+  `<stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>`;
 export const DECAL_TINTS = ["#F7F7F2", "#0A0A0A", "#C2FE0B", "#FF5500", "#EA027E", "#3601FB", "#01FFFF"];
 
 const ORDER = ["stock", "magazine", "grip", "barrel", "frame", "optic"];
@@ -59,7 +63,60 @@ export function gunBox(placed) {
   return acc.x0 === Infinity ? { x0: 0, y0: 0, x1: 300, y1: 120 } : acc;
 }
 
+/* ------------------------------------------------------------------ decal areas */
+
+const ZONE_NAMES = { barrel: "Barrel", magazine: "Magazine", optic: "Optic", grip: "Foregrip", stock: "Stock" };
+/**
+ * Flat areas of the assembled gun where a decal fits, in gun units: the largest rectangle inside each
+ * part (found by the tracing tool), with the receiver also split into a rear and a front half.
+ * Returns [{ id, label, slot, tone ("p" paint or "s" dark polymer), x, y, w, h }].
+ */
+export function decalZones(build) {
+  const out = [];
+  for (const p of layout(build).placed) {
+    const z = p.part.zones?.[0];
+    if (!z || z[2] < 18 || z[3] < 10) continue;
+    const [x, y, w, h] = [p.x + z[0], p.y + z[1], z[2], z[3]];
+    const tone = p.slot === "frame" || p.slot === "barrel" || p.slot === "stock" ? "p" : "s";
+    if (p.slot === "frame") {
+      out.push({ id: "rear", label: "Receiver rear", slot: "frame", tone, x, y, w: w * 0.48, h });
+      out.push({ id: "receiver", label: "Receiver", slot: "frame", tone, x, y, w, h });
+      out.push({ id: "front", label: "Receiver front", slot: "frame", tone, x: x + w * 0.52, y, w: w * 0.48, h });
+    } else out.push({ id: p.slot, label: ZONE_NAMES[p.slot], slot: p.slot, tone, x, y, w, h });
+  }
+  return out;
+}
+/** Size and centre that fit a decal inside a zone with a margin, keeping its proportions. */
+export function fitToZone(dec, zone, fill = 1) {
+  const art = decalArt(dec), r = art.h / art.w;
+  return { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2, w: Math.max(12, Math.min(zone.w * 0.88, (zone.h * 0.8) / r) * fill), rot: 0 };
+}
+
 /* ------------------------------------------------------------------ decals */
+
+// Decals drawn here rather than by the decal kit.
+const LOCAL_DECALS = {
+  // Hazard band: slanted stripes between two rules.
+  hazard: () => {
+    const W = 240, H = 52, band = 18;
+    let body = `<rect x="0" y="0" width="${W}" height="4" fill="#fff"/><rect x="0" y="${H - 4}" width="${W}" height="4" fill="#fff"/>`;
+    for (let x = -H; x < W + H; x += band * 2) {
+      const pts = clipX([[x, 8], [x + band, 8], [x + band - (H - 16), H - 8], [x - (H - 16), H - 8]], 0, W);
+      if (pts.length) body += `<polygon points="${pts.map(([a, b]) => `${n(a)},${n(b)}`).join(" ")}" fill="#fff"/>`;
+    }
+    return { w: W, h: H, body };
+  },
+};
+/** Clips a polygon to the vertical strip lo ≤ x ≤ hi. */
+function clipX(pts, lo, hi) {
+  const cut = (poly, inside, edge) => poly.flatMap((p, i) => {
+    const q = poly[(i + 1) % poly.length], out = [];
+    if (inside(p)) out.push(p);
+    if (inside(p) !== inside(q)) { const t = (edge - p[0]) / (q[0] - p[0]); out.push([edge, p[1] + t * (q[1] - p[1])]); }
+    return out;
+  });
+  return cut(cut(pts, p => p[0] >= lo, lo), p => p[0] <= hi, hi);
+}
 
 const decalCache = new Map();
 /** The decal artwork as a white-on-black fragment ({ w, h, body }); black reads as transparent once used as a mask. */
@@ -68,7 +125,7 @@ export function decalArt(dec) {
   if (!decalCache.has(key)) {
     const d = dec.text != null
       ? textVariant({ text: dec.text, variant: dec.variant ?? "display", size: 48, palette: "mask" })
-      : make(dec.kind, { seed: dec.seed, palette: "mask" });
+      : LOCAL_DECALS[dec.kind] ? LOCAL_DECALS[dec.kind](dec) : make(dec.kind, { seed: dec.seed, palette: "mask" });
     decalCache.set(key, { w: d.w, h: d.h, body: binarize(d.body, PALETTES.mask, "white") });
   }
   return decalCache.get(key);
@@ -102,21 +159,22 @@ const SCRATCHES = (() => {
   return Array.from({ length: 48 }, () => { const x = -160 + r() * 760, y = -40 + r() * 170, a = (r() - 0.5) * 0.9, l = 8 + r() * 34; return [x, y, x + Math.cos(a) * l, y + Math.sin(a) * l]; });
 })();
 
-function wearDefs(P, w, silhouette) {
-  const t = 0.93 - 0.36 * w;         // noise level above which paint is gone
-  const edge = w < 0.02 ? 0 : 1.5 + 11 * w;
+function wearDefs(P, w) {
+  const t = 0.97 - 0.4 * w;          // noise level above which paint is gone
   return `<filter id="${P}chip" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="4" seed="11"/>` +
     `<feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  9 0 0 0 ${n(-9 * t)}"/><feComponentTransfer><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer></filter>` +
-    `<filter id="${P}edge" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.22" numOctaves="2" seed="4" result="n"/>` +
-    `<feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6 0 0 0 -2.6" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in"/></filter>` +
     `<filter id="${P}grime" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="3" seed="2"/>` +
     `<feColorMatrix type="matrix" values="0 0 0 0 0.1  0 0 0 0 0.08  0 0 0 0 0.05  2.2 0 0 0 -1.05"/></filter>` +
     `<mask id="${P}wear" maskUnits="userSpaceOnUse" x="-600" y="-400" width="2000" height="1000"><rect x="-600" y="-400" width="2000" height="1000" fill="#fff"/>` +
-    (w > 0.01 ? `<rect class="wear-chips" x="-600" y="-400" width="2000" height="1000" filter="url(#${P}chip)"/>` : "") +
-    (edge ? `<g filter="url(#${P}edge)" fill="none" stroke="#000" stroke-width="${n(edge)}" stroke-linejoin="round">${silhouette}</g>` : "") + `</mask>`;
+    (w > 0.01 ? `<rect class="wear-chips" x="-600" y="-400" width="2000" height="1000" filter="url(#${P}chip)"/>` : "") + `</mask>` +
+    shadeDef(`${P}shade`);
 }
 
 /* ------------------------------------------------------------------ gun */
+
+// Panel lines are drawn twice, a light line just below a dark one, so they read as engraved on light and dark paint.
+const linesMarkup = (paths, fin) => `<g class="lines" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">` +
+  `<g stroke="rgba(255,255,255,.16)" transform="translate(0 1.1)">${paths}</g><g stroke="${fin.line}">${paths}</g></g>`;
 
 /**
  * Markup for one gun. opts: { finish, wear (0..1), decals: [], prefix (unique id prefix) }.
@@ -134,11 +192,12 @@ export function gunMarkup(build, opts = {}) {
 
   // Paths fill with the nonzero rule: holes (trigger guards, stock cut-outs) run the opposite way round,
   // so a colour block drawn over a part never punches a hole in the metal underneath.
-  let silhouette = "", clip = "", metal = "", paint = "", lines = "";
+  let clip = "", metal = "", paint = "", shade = "", seams = "", lines = "";
   for (const p of lay.placed) {
     const all = p.shape.fills.map(f => f.d).join("");
-    silhouette += `<path ${tr(p)} d="${all}"/>`;
     clip += `<path ${tr(p)} d="${all}"/>`;
+    shade += `<path ${tr(p)} d="${all}"/>`;
+    seams += `<path ${tr(p)} d="${all}"/>`;
     metal += `<path ${tr(p)} d="${all}"/>`;
     paint += `<g class="part part-${p.slot}" ${tr(p)}>` + p.shape.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("") + `</g>`;
     if (p.slot === "frame") {
@@ -151,10 +210,12 @@ export function gunMarkup(build, opts = {}) {
   const box = gunBox(lay.placed);
   const scratches = SCRATCHES.slice(0, Math.round(w * SCRATCHES.length)).map(([a, b, c, d]) => `M${n(a)} ${n(b)}L${n(c)} ${n(d)}`).join("");
 
-  const svg = `<defs><clipPath id="${P}sil">${clip}</clipPath>${wearDefs(P, w, silhouette)}</defs>` +
+  const svg = `<defs><clipPath id="${P}sil">${clip}</clipPath>${wearDefs(P, w)}</defs>` +
     `<g class="metal" fill="${METAL}">${metal}</g>` +
     `<g class="paint" mask="url(#${P}wear)">${paint}<g class="decals" clip-path="url(#${P}sil)">${decals}</g></g>` +
-    `<g class="lines" fill="none" stroke="${fin.line}" stroke-width="1.6">${lines}</g>` +
+    `<g class="shade" fill="url(#${P}shade)">${shade}</g>` +
+    `<g class="seams" fill="none" stroke="${SEAM}" stroke-width="1.6" stroke-linejoin="round">${seams}</g>` +
+    linesMarkup(lines, fin) +
     (w > 0.01 ? `<g clip-path="url(#${P}sil)"><rect x="${n(box.x0)}" y="${n(box.y0)}" width="${n(box.x1 - box.x0)}" height="${n(box.y1 - box.y0)}" filter="url(#${P}grime)" opacity="${n(0.7 * w)}"/>` +
       `<path d="${scratches}" stroke="#D9DAD2" stroke-opacity=".55" stroke-width="1" fill="none"/></g>` : "");
   return { svg, box, lay };
@@ -168,7 +229,10 @@ export function partMarkup(slot, id, finish = "bone", railLen = 150) {
   const color = tone => (tone === "p" || tone === "s" || tone === "a" ? fin[tone] : FIXED[tone]);
   const acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   for (const f of sh.fills) pathBox(f.d, 0, 0, acc);
-  const svg = `<g>${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
-    (sh.lines.length ? `<path d="${sh.lines.join("")}" fill="none" stroke="${fin.line}" stroke-width="1.6"/>` : "");
+  const all = sh.fills.map(f => f.d).join(""), P = `pt-${slot}-${id}-`;
+  const svg = `<defs>${shadeDef(`${P}shade`)}</defs>` +
+    `<g>${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
+    `<path d="${all}" fill="url(#${P}shade)"/><path d="${all}" fill="none" stroke="${SEAM}" stroke-width="1.6" stroke-linejoin="round"/>` +
+    (sh.lines.length ? linesMarkup(`<path d="${sh.lines.join("")}"/>`, fin) : "");
   return { svg, box: acc };
 }

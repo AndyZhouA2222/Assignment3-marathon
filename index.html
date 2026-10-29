@@ -45,7 +45,9 @@
         <p class="hint">Pick a slot, then click or drag a part onto the gun. <b>Frame, barrel and magazine</b> are needed to fire.</p>
       </section>
       <section data-for="skin">
-        <p class="eyebrow">// Decal library <button id="shuffle-btn" class="mini">Shuffle</button></p>
+        <p class="eyebrow">// Layouts</p>
+        <div class="seg" id="layout-seg" role="group" aria-label="Decal layouts"></div>
+        <p class="eyebrow">// Decal library</p>
         <div id="decal-lib" class="decal-lib"></div>
         <form id="text-form" class="text-form" autocomplete="off">
           <label for="text-input" class="eyebrow">// Text decal</label>
@@ -82,9 +84,10 @@
         <p class="eyebrow">// Finish</p>
         <div class="seg" id="finish-seg" role="group" aria-label="Paint finish"></div>
         <p class="eyebrow">// Wear <output id="wear-out"></output></p>
-        <input id="wear" type="range" min="0" max="100" value="15" aria-label="Wear">
+        <input id="wear" type="range" min="0" max="100" value="0" aria-label="Wear">
         <div id="decal-edit" class="decal-edit" hidden>
-          <p class="eyebrow">// Selected decal</p>
+          <p class="eyebrow">// Selected decal · position</p>
+          <div class="seg" id="pos-seg" role="group" aria-label="Decal position"></div>
           <label>Size <input id="d-size" type="range" min="12" max="220" value="60"></label>
           <label>Rotate <input id="d-rot" type="range" min="-180" max="180" value="0"></label>
           <div class="seg" id="tint-seg" role="group" aria-label="Decal colour"></div>

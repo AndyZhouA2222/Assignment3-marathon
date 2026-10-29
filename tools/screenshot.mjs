@@ -70,13 +70,12 @@ async function build(p, pause = 150) {
 
 async function skin(p, pause = 150) {
   await p.keyboard.press("2"); await wait(pause);
-  const box = await p.locator("#stage").boundingBox();
-  const at = (x, y) => p.mouse.click(box.x + box.width * x, box.y + box.height * y);
-  await p.click('.decal-tile[data-i="0"]'); await at(0.45, 0.42); await wait(pause);
-  await p.click('.decal-tile[data-i="3"]'); await at(0.62, 0.45); await wait(pause);
-  await p.fill("#text-input", "runner 07"); await p.click("#text-form button"); await at(0.3, 0.45); await wait(pause);
-  await p.click('#tint-seg button:nth-child(3)'); await wait(pause);
-  await p.locator("#wear").fill("55"); await wait(pause * 2);
+  await p.click('#layout-seg [data-layout="runner"]'); await wait(pause * 2);  // a whole layout
+  await p.click('.decal-tile[data-i="16"]'); await wait(pause);               // hazard band, placed on a free spot
+  await p.click('#pos-seg [data-zone="barrel"]'); await wait(pause);          // moved to a preset position
+  await p.fill("#text-input", "runner 07"); await p.click("#text-form button"); await wait(pause);
+  await p.click('#tint-seg button:nth-child(4)'); await wait(pause);
+  await p.locator("#wear").fill("30"); await wait(pause * 2);
 }
 
 async function fire(p, hold) {
