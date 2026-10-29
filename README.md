@@ -1,34 +1,148 @@
-# Marathon UI
+# Gunsmith
 
-游戏风格 UI 设计资源，做成 Claude Code skill。在这个仓库里打开 Claude Code，下面三个 skill 会自动加载。
+A Marathon-style weapon bench in the browser. Snap a gun together from parts, cover it in decals and wear, then pull the trigger and hear and feel what you built.
 
-| Skill | 用途 |
+![Gunsmith walkthrough: building a rifle, adding decals and wear, firing at the range and reloading](docs/demo.gif)
+
+**Live version:** https://andyzhoua2222.github.io/marathon/ (GitHub Pages, served from `main`).
+A longer recording is in [`docs/demo.webm`](docs/demo.webm).
+
+## The idea
+
+Loadout screens in shooters show three bars (Firepower, Accuracy, Handling) and ask you to trust that a longer barrel "feels" different. Gunsmith makes that link audible and physical. Every part moves the three numbers, and the numbers drive a synthesised gunshot and a spring-based recoil model, so swapping a stubby barrel for a long one changes the shot from a light snap with a fast rattle into a deeper, slower report with a calmer recovery.
+
+The look follows the visual language of Bungie's *Marathon*: black, bone white, one acid-green accent, hard cut corners, monospaced data labels and dense graphic decals.
+
+## Who it is for
+
+People who play extraction shooters and enjoy tinkering with loadouts and weapon skins, and design students curious about how game UI connects numbers to feel. No game knowledge is needed: every part card says what it changes before you fit it.
+
+## The main interaction
+
+The loop is **pick a part → it snaps on → the numbers, sound and feel change → pull the trigger to check**. Three steps, switchable at any time:
+
+| Step | You do | The bench responds |
+|---|---|---|
+| **01 Build** | Pick a slot, then click or drag a part card onto the gun | The part slides into its socket with a clack. The three stat bars preview the change in green and orange while you hover, and the readout words (Report, Tone, Kick, Recovery) update. Parts that don't fit stay visible but greyed, with the reason. |
+| **02 Skin** | Pick a decal from the library (or type a callsign), click the gun to stick it, drag it around; choose a paint finish and drag the wear slider | Decals are clipped to the gun's silhouette. Wear chips paint off the edges to show bare metal, adds grime and scratches, and the decals wear with the paint. |
+| **03 Fire** | Aim over the lane and hold the mouse button or Space; press R to reload | Shots land on the target with spread, sway and muzzle climb from the stats. The gun kicks back on a spring, casings fly, the counter drops, and an empty magazine gives a report of shots, hits, damage and group size. |
+
+You can pull the trigger in any step. Firing an unfinished gun jams and takes you to the missing slot.
+
+**Going back, resetting, stopping:** the step buttons (or keys 1, 2, 3) move freely between steps without losing anything. Every slot has a *None* card to take a part off. *Reset* (click twice) clears the bench, *Clear all decals* (click twice) clears the skin, Delete removes the selected decal and Esc cancels a decal you are about to place. *Sound on/off* (or M) mutes. The bench is saved in the browser, so a reload brings it back.
+
+### How the three stats become sound and feel
+
+All three are normalised to 0–1 in [`src/parts.js`](src/parts.js) and mapped in [`src/feel.js`](src/feel.js):
+
+| Stat | Sound | Feel |
+|---|---|---|
+| **Firepower** | Lower and longer thump, louder body, bigger room tail | Bigger kick back and muzzle climb, screen shake, larger flash |
+| **Accuracy** | Tighter, brighter crack and fewer stray echoes (ragged at low accuracy) | Smaller first-shot cone and less bloom per shot, less climb |
+| **Handling** | The mechanism clicks sooner and brighter after each shot | Stiffer recoil spring (the gun settles faster), less idle sway, faster reload |
+
+The frame sets the base numbers and the firing mode (auto, semi or a five-round burst). Parts add or subtract from there, so the same frame can become a twitchy close-range gun or a slow, steady long-range one.
+
+### One action, traced through the code
+
+Holding the mouse button on the range calls `press()` in [`src/range.js`](src/range.js) (line 38). It checks the gun is complete (otherwise `jam()`), ignores presses faster than the frame's fire rate, then calls `fireOne()` (line 60). `fireOne()` takes a round, plays `sfx.shot(snd)` from [`src/audio.js`](src/audio.js) with the sound settings `soundParams(stats)` worked out from the three stats, adds a recoil impulse sized by `feelParams(stats)`, and calls `shootDownrange()` to place the hit. The per-frame `tick()` (line 117) then pulls the gun back to rest with a spring whose stiffness and damping come from Handling, and keeps firing while the button is held on automatic frames.
+
+## Run it
+
+It is a static site with no build step and no runtime packages. Browsers block JavaScript modules on `file://` pages, so serve the folder with any static server and open the address it prints. With Python 3 (built into macOS and most Linux):
+
+```sh
+git clone https://github.com/AndyZhouA2222/marathon.git
+cd marathon
+python3 -m http.server 8000
+# open http://localhost:8000/
+```
+
+Other ways that work the same:
+
+```sh
+uv run python -m http.server 8000   # with uv
+npx serve .                         # with Node.js
+```
+
+Opening `index.html` directly shows a message explaining this instead of a blank page.
+
+Use a current desktop Chrome, Edge, Firefox or Safari. The page loads its typefaces from Google Fonts; offline it falls back to system fonts and still works.
+
+### Tests and screenshots (optional, for development)
+
+```sh
+npm test            # Node 18+: 18 tests for the part rules, stat model and feel mapping (no install needed)
+npm install         # only for the screenshot tool (playwright-core)
+npm run shots       # rewrites docs/*.png and docs/demo.gif; needs Chrome and ffmpeg
+```
+
+## Controls
+
+| Key | Action |
 |---|---|
-| [`marathon-ui-style`](.claude/skills/marathon-ui-style/SKILL.md) | Bungie《Marathon》（2026）风格的网页 / 应用 UI：酸性绿 + 黑 / 骨白、宽体科技字、等宽数据标签。含 React 组件库。 |
-| [`arc-raiders-ui-style`](.claude/skills/arc-raiders-ui-style/SKILL.md) | Embark《ARC Raiders》风格的网页 / 应用 UI。含 React 组件库。和 Marathon 风格完全分开。 |
-| [`marathon-decal-kit`](.claude/skills/marathon-decal-kit/SKILL.md) | 生成 Marathon 风格的贴花、符号、标签和文字变体，整张贴花表有 flow / prop（道具稿）/ atlas（符号图集）/ bands（封条带）四种版式（SVG / PNG / React）。默认输出纯黑白，直接给 3D 软件当遮罩用。 |
+| 1 / 2 / 3 | Build / Skin / Fire |
+| Space (hold) or mouse button on the lane | Fire |
+| R | Reload |
+| M | Sound on or off |
+| Delete | Remove the selected decal |
+| Arrow keys | Nudge the selected decal (Shift for bigger steps) |
+| Esc | Cancel placing a decal, deselect |
 
-每个 skill 目录的结构：
+Part cards and the trigger button also work with Tab and Enter.
+
+## Mistakes and interruptions it handles
+
+- **Firing an unfinished gun:** the trigger jams with a dry click, names the missing part and jumps to its slot.
+- **A part that doesn't fit:** a magazine for the wrong ammo, a stock on the pistol frame, or a foregrip on a barrel without a rail is refused with the reason, and the card stays greyed. Swapping a frame or barrel takes off parts that no longer fit and says which.
+- **Repeated clicks:** pressing faster than the gun's fire rate is ignored with a "Cycling" note, presses during a reload are ignored, and reloading a full magazine says so. Reset and Clear all ask for a second click.
+- **Empty magazine:** dry fire, "Empty · press R", and a magazine report.
+- **Empty or invalid text decal:** an inline error with a shake; nothing is added. Decals are capped at 30, with a message.
+- **Clicking off the gun with a decal:** "Decals only stick to the gun."
+- **No sound available** (no Web Audio, or blocked): a one-time notice; everything else keeps working and the sound button shows "No sound".
+- **Storage blocked or saved data damaged** (private mode, an old save): the bench starts fresh instead of failing.
+- **Opened from the file system or with JavaScript off:** a page explaining how to serve it.
+- **Fonts unavailable:** system fallbacks.
+
+## Project layout
 
 ```
-SKILL.md        规范和用法
-assets/         可直接复制进项目的代码（CSS、React 组件、生成器）
-references/     调研笔记、取色、参考图、效果截图
-scripts/        命令行工具（仅 decal kit）
+index.html                 page structure
+css/gunsmith.css           Marathon-style tokens and layout
+src/app.js                 state, build step, part tray, drag and drop, keyboard
+src/parts.js               part library, sockets, compatibility rules, stat model (no DOM)
+src/feel.js                stats → sound and feel settings (no DOM)
+src/audio.js               Web Audio synthesis of shots, dry fire, reload
+src/gun-svg.js             draws the assembled gun: finish, wear, decals
+src/skin.js                decal library, placing and editing decals, finish and wear
+src/range.js               firing range: trigger, recoil springs, hits, reload
+src/lib/decal-kit.js       decal and text generator (from this repo's earlier decal kit)
+src/data/marathondb-weapons.js   weapon stats snapshot from MarathonDB
+tests/                     node:test tests
+tools/screenshot.mjs       captures the README images
+docs/                      screenshots and recordings
 ```
 
-## 本地开发
+## Screenshots
 
-```bash
-npm install
-npm run typecheck                 # TypeScript strict 检查所有 skill 代码
-npm run demos                     # 打包各 skill 的示例页到 out/demos/
-CHROMIUM_PATH=... npm run shots   # 桌面 1280px / 手机 390px 截图到 out/shots/，并检查报错和横向溢出
-npm run decals -- --mode sheet --layout prop --seed 5 --png               # 黑底白图（默认）
-npm run decals -- --mode sheet --layout prop --seed 5 --transparent --png # 透明底
-npm run decals -- --mode sheet --layout prop --palette lab --seed 5 --png # 彩色稿
-```
+| Build | Skin | Fire |
+|---|---|---|
+| ![Build step: slots on the left, the assembled rifle, the part tray with stat chips](docs/build.png) | ![Skin step: decal library, decals and wear on the rifle, finish and decal controls](docs/skin.png) | ![Fire step: the range target with hit markers, ammo counter and range readout](docs/fire.png) |
 
-## 版权
+## Known limitations
 
-本仓库是风格研究和复刻工具，不包含也不应加入 Bungie、Embark 的官方标志或素材。`references/` 里的截图和参考图只用于研究，版权归原作者。
+- **Part shapes are my own simplified vector drawings**, in the spirit of the game's weapons, not traced from it. Weapon images from MarathonDB could not be downloaded in the environment this was built in. Each part's outline lives in one `draw()` function in `src/parts.js`, so shapes can be redrawn without touching the rest.
+- **Only the frames' base numbers are real data** (a MarathonDB snapshot from 29 October 2026). The part modifiers are invented to make the trade-offs readable. MarathonDB has no accuracy value for the WSTR shotgun, so 35 is an estimate.
+- **The sound is synthesised**, not recorded. It is built to make differences between builds obvious, not to sound like the real game. Phones on silent may mute it.
+- **Side view only:** decals go on the one visible side of the gun.
+- **Desktop first.** On a narrow screen the panels stack and the bench works with touch, but it has only been checked in an emulated phone-sized window, not on a real phone. On touch, press and hold the lane to fire (aiming follows the finger), and the keyboard shortcuts are unavailable.
+- The saved bench lives in this browser only.
+
+## Credits
+
+- **Weapon names and base stats:** [MarathonDB](https://marathondb.gg/weapons/), a community database, via its public API.
+- **Visual style** inspired by Bungie's *Marathon* ([marathonthegame.com](https://marathonthegame.com/)). No game assets, logos, screenshots or audio are included. *Marathon* is a trademark of Bungie. This is a non-commercial student project, not affiliated with or endorsed by Bungie.
+- **Decal generator:** `src/lib/decal-kit.js`, compiled from the Marathon decal kit made earlier in this repository (see the commit history).
+- **Fonts:** Chakra Petch, Archivo, JetBrains Mono, Inter and Instrument Serif from [Google Fonts](https://fonts.google.com/) (SIL Open Font License). If the game's own typefaces are installed on your computer the page uses them instead; they are not included.
+- **Tools:** [Playwright](https://playwright.dev/) for screenshots, [ffmpeg](https://ffmpeg.org/) for the GIF.
+- **AI assistance:** written with Claude Code; [PROCESS.md](PROCESS.md) says what for.
