@@ -2,7 +2,8 @@
 
 The renders are not part of this repository. The folder should hold one sub-folder per weapon with its
 transparent `*full.webp` skin renders; config.json names the one each weapon is cut from. The script flips
-that render so the muzzle points right, rotates it level, cuts it into the parts listed in config.json,
+that render so the muzzle points right, rotates it level, cuts it into the parts listed in config.json
+(turning them by the weapon's `tilt`, so the bore runs straight across),
 simplifies each outline to a polygon, finds its largest flat rectangle (the decal position) and writes
 src/data/traced-shapes.js. A frame's `dark` block is everything below its belly line.
 Light and shadow come from all the skins of the weapon together, with the paint taken out (see `shading`),
@@ -223,6 +224,22 @@ def main():
             used |= pm
         frame = clean(sil & ~used, close=3, min_frac=0.05, hole_min=hm)
         print(f"{key}: shading from {skins} skin{'s' * (skins > 1)}")
+        belly, tilt = c.get("belly"), c.get("tilt", 0)
+        M = np.eye(2, 3)
+        if tilt:
+            # load_render levels the top edge, but in a 3/4 view that can leave the bore pointing up or down, which shows
+            # as a bend where a barrel meets a frame. So the cut parts, their light and every point on them are turned
+            # until the bore runs straight across (tilt = the bore's slope in degrees, negative when it rises to the right).
+            pad = int(np.ceil(abs(np.sin(np.radians(tilt))) * W / 2)) + 4
+            M = cv2.getRotationMatrix2D((W / 2, H / 2), tilt, 1.0)
+            M[:, 2] += pad
+            size = (W + 2 * pad, H + 2 * pad)
+            turn = lambda m: cv2.warpAffine(m.astype(np.uint8), M, size, flags=cv2.INTER_NEAREST).astype(bool)
+            if belly is not None: belly = round(M[1, 0] * np.nonzero(frame.any(0))[0].mean() + M[1, 1] * belly + M[1, 2])
+            sil, frame, regions = turn(sil), turn(frame), {k: turn(m) for k, m in regions.items()}
+            shade = cv2.warpAffine(shade, M, size, flags=cv2.INTER_LINEAR)
+        vec = lambda v: [M[0, 0] * v[0] + M[0, 1] * v[1], M[1, 0] * v[0] + M[1, 1] * v[1]]
+        pt = lambda p: [a + b for a, b in zip(vec(p), M[:, 2])] + list(p[2:])
 
         def build(m, ox, oy, name, belly=None, count=1):
             d = {"base": to_path(outlines(m, eps, hm), ox, oy, s), "light": light_map(shade, m, ox, oy, s, os.path.join(LIGHT_DIR, f"{name}.webp"))}
@@ -238,13 +255,13 @@ def main():
         sc = lambda v: round(v * s, 1)
         if c.get("frame"):
             ys, xs = np.nonzero(frame); fx, fy = xs.min(), ys.min()
-            fr = build(frame, fx, fy, f"frame-{c['frame']}", c.get("belly"), count=2)
-            fr["sockets"] = {n: None if p is None else [sc(p[0] - fx), sc(p[1] - fy)] + ([sc(p[2])] if len(p) > 2 else []) for n, p in c["sockets"].items()}
+            fr = build(frame, fx, fy, f"frame-{c['frame']}", belly, count=2)
+            fr["sockets"] = {n: None if p is None else [sc(p[0] - fx), sc(p[1] - fy)] + ([sc(p[2])] if len(p) > 2 else []) for n, p in ((n, p and pt(p)) for n, p in c["sockets"].items())}
             out["frame"][c["frame"]] = fr
         for pid, r in c.get("parts", {}).items():
-            p = build(regions[pid], *r["origin"], f"{r['slot']}-{pid}")
+            p = build(regions[pid], *pt(r["origin"]), f"{r['slot']}-{pid}")
             if "tip" in r: p["tip"] = sc(r["tip"])
-            if "under" in r: p["under"] = None if r["under"] is None else [sc(v) for v in r["under"]]
+            if "under" in r: p["under"] = None if r["under"] is None else [sc(v) for v in vec(r["under"])]
             out[r["slot"]][pid] = p
 
         if args.preview:
