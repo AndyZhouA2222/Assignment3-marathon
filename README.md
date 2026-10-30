@@ -79,13 +79,15 @@ npm run shots       # rewrites docs/*.png and docs/demo.gif; needs Chrome and ff
 
 ### Redrawing the parts (optional)
 
-The part outlines in `src/data/traced-shapes.js` are generated from weapon renders, which are not in this repository. With a folder of renders laid out as in [`tools/trace/config.json`](tools/trace/config.json) (one sub-folder per weapon), and Python with numpy, opencv-python-headless and Pillow:
+The part outlines in `src/data/traced-shapes.js` and the light maps in `assets/light/` are generated from MarathonDB weapon renders, which are not in this repository. With a folder of renders laid out as in [`tools/trace/config.json`](tools/trace/config.json) (one sub-folder per weapon holding all of its `*full.webp` skin renders), and Python with numpy, opencv-python-headless and Pillow:
 
 ```sh
-python3 tools/trace/trace.py path/to/renders --preview out/trace   # rewrites src/data/traced-shapes.js
+python3 tools/trace/trace.py path/to/renders --preview out/trace   # rewrites src/data/traced-shapes.js and assets/light/
 ```
 
-For each weapon the script flips the render so the muzzle points right, levels it, cuts it into the parts listed in the config, simplifies each outline to a polygon and scales it to bench units. It also keeps the long, straight edges inside each part as panel lines, and finds the largest flat rectangle in each part, which becomes that part's decal position. `--preview` saves an overlay per weapon showing where it cut.
+For each weapon the script flips the render so the muzzle points right, levels it, cuts it into the parts listed in the config, simplifies each outline to a polygon and scales it to bench units. It finds the largest flat rectangle in each part, which becomes that part's decal position.
+
+The light and shadow come from all the skins of a weapon at once. The skins are rendered from the same camera under the same light, and only the paint changes, so the script lines them up, takes the median of their brightness gradients and integrates it back into an image (the method of Weiss, *Deriving intrinsic images from image sequences*, 2001). Paint and printed artwork differ from skin to skin and drop out; what is left is the shading of the model itself. Each part's share is saved as a small greyscale WebP, which the bench lays over the chosen paint twice: multiplied to darken what faces away from the light, and screened to lift what faces it. `--preview` saves that shading per weapon with the part cuts drawn on it.
 
 ## Controls
 
@@ -130,6 +132,7 @@ src/range.js               firing range: trigger, recoil springs, hits, reload
 src/lib/decal-kit.js       decal and text generator (from this repo's earlier decal kit)
 src/data/marathondb-weapons.js   weapon stats snapshot from MarathonDB
 src/data/traced-shapes.js  part outlines traced from weapon renders (generated)
+assets/light/              greyscale light map per part (generated)
 tests/                     node:test tests
 tools/screenshot.mjs       captures the README images
 tools/trace/               tracing script and the config saying how each weapon is cut into parts
@@ -144,7 +147,7 @@ docs/                      screenshots and recordings
 
 ## Known limitations
 
-- **Part shapes are flat traced outlines.** Each part is traced from a render of the weapon it comes from and simplified to a polygon, then drawn in two tones (paint, and dark polymer for grips, magazines and sights). Panel lines are the long, straight edges the tracing tool finds inside each render, so a few marks from the skins' printed artwork slip through and small details are missing. Parts keep the attachment point of their own weapon, so a part from a much larger or smaller gun can look oversized on another frame. Two pieces are drawn by hand: the iron sights (they stretch to the rail) and the Magnum's grip magazine (only its base plate shows).
+- **Parts are side-on cut-outs of three-quarter renders.** The renders look slightly down on each gun, so tops show and parts from different guns can sit at slightly different angles. Where a weapon has only two skins rendered from the same camera (the Hardline, Retaliator and Copperhead) or one (the V66 Lookout), some printed marks from the skins survive in the light maps, mirrored because the renders are flipped. The receiver's dark polymer is everything below one straight belly line, not the real part lines. Parts keep the attachment point of their own weapon, so a part from a much larger or smaller gun can look oversized on another frame. Two pieces are drawn by hand and have no shading: the iron sights (they stretch to the rail) and the Magnum's grip magazine (only its base plate shows).
 - **The WSTR shotgun and the Magnum pistol have no stock mount**, because the renders show none.
 - **Only the frames' base numbers are real data** (a MarathonDB snapshot from 29 October 2026). The part modifiers are invented to make the trade-offs readable. MarathonDB has no accuracy value for the WSTR shotgun, so 35 is an estimate.
 - **The sound is synthesised**, not recorded. It is built to make differences between builds obvious, not to sound like the real game. Phones on silent may mute it.
@@ -155,8 +158,8 @@ docs/                      screenshots and recordings
 ## Credits
 
 - **Weapon names and base stats:** [MarathonDB](https://marathondb.gg/weapons/), a community database, via its public API.
-- **Part outlines** are traced from weapon renders shown on MarathonDB (the weapon art is Bungie's). The renders were used only as a tracing reference and are not included in this repository.
-- **Visual style** inspired by Bungie's *Marathon* ([marathonthegame.com](https://marathonthegame.com/)). No game images, logos, screenshots or audio are included. *Marathon* is a trademark of Bungie. This is a non-commercial student project, not affiliated with or endorsed by Bungie.
+- **Part outlines and light maps** are made from weapon renders shown on MarathonDB (the weapon art is Bungie's). The outlines are traced polygons; the light maps are greyscale shading computed from all the skins of each weapon with their paint removed, so they are derived from Bungie's models. The renders themselves are not included in this repository.
+- **Visual style** inspired by Bungie's *Marathon* ([marathonthegame.com](https://marathonthegame.com/)). Apart from the traced outlines and light maps above, no game images, logos, screenshots or audio are included. *Marathon* is a trademark of Bungie. This is a non-commercial student project, not affiliated with or endorsed by Bungie.
 - **Decal generator:** `src/lib/decal-kit.js`, compiled from the Marathon decal kit made earlier in this repository (see the commit history).
 - **Fonts:** Chakra Petch, Archivo, JetBrains Mono, Inter and Instrument Serif from [Google Fonts](https://fonts.google.com/) (SIL Open Font License). If the game's own typefaces are installed on your computer the page uses them instead; they are not included.
 - **Tools:** [Playwright](https://playwright.dev/) for screenshots, [ffmpeg](https://ffmpeg.org/) for the GIF.

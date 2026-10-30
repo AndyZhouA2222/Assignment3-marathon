@@ -5,17 +5,15 @@ import { part } from "./parts.js";
 import { make, textVariant, binarize, PALETTES } from "./lib/decal-kit.js";
 
 export const FINISHES = {
-  bone: { label: "Bone", p: "#E8E6DF", s: "#2B2B2B", a: "#C2FE0B", line: "rgba(10,10,10,.42)" },
-  carbon: { label: "Carbon", p: "#2A2A2A", s: "#141414", a: "#C2FE0B", line: "rgba(255,255,255,.16)" },
-  acid: { label: "Acid", p: "#C2FE0B", s: "#1C1C1C", a: "#0A0A0A", line: "rgba(10,10,10,.45)" },
-  signal: { label: "Signal", p: "#FF5500", s: "#1E1E1E", a: "#F7F7F2", line: "rgba(10,10,10,.4)" },
+  bone: { label: "Bone", p: "#E8E6DF", q: "#E8E6DF", s: "#2B2B2B", a: "#C2FE0B", shadow: 0.8, light: 0.2 },
+  carbon: { label: "Carbon", p: "#2A2A2A", q: "#474C52", s: "#141414", a: "#C2FE0B", shadow: 0.6, light: 0.26 },
+  acid: { label: "Acid", p: "#C2FE0B", q: "#E8E6DF", s: "#1C1C1C", a: "#0A0A0A", shadow: 0.75, light: 0.22 },
+  signal: { label: "Signal", p: "#FF5500", q: "#33363A", s: "#1E1E1E", a: "#F7F7F2", shadow: 0.75, light: 0.18 },
 };
+// p paints the receiver, q the barrel and stock (the two-tone blocking of Marathon skins), s the polymer parts.
 const FIXED = { m: "#5F605C", k: "#0E0E0E", g: "#121A22" };
 const METAL = "#77786F";
 const SEAM = "rgba(8,8,8,.9)"; // outline round every part, so parts read as separate pieces
-// Light from above: each part gets a soft highlight on top and a shadow underneath.
-const shadeDef = id => `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/>` +
-  `<stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>`;
 export const DECAL_TINTS = ["#F7F7F2", "#0A0A0A", "#C2FE0B", "#FF5500", "#EA027E", "#3601FB", "#01FFFF"];
 
 const ORDER = ["stock", "magazine", "grip", "barrel", "frame", "optic"];
@@ -69,7 +67,7 @@ const ZONE_NAMES = { barrel: "Barrel", magazine: "Magazine", optic: "Optic", gri
 /**
  * Flat areas of the assembled gun where a decal fits, in gun units: the largest rectangle inside each
  * part (found by the tracing tool), with the receiver also split into a rear and a front half.
- * Returns [{ id, label, slot, tone ("p" paint or "s" dark polymer), x, y, w, h }].
+ * Returns [{ id, label, slot, tone ("p" paint, "q" second paint or "s" dark polymer), x, y, w, h }].
  */
 export function decalZones(build) {
   const out = [];
@@ -77,7 +75,7 @@ export function decalZones(build) {
     const z = p.part.zones?.[0];
     if (!z || z[2] < 18 || z[3] < 10) continue;
     const [x, y, w, h] = [p.x + z[0], p.y + z[1], z[2], z[3]];
-    const tone = p.slot === "frame" || p.slot === "barrel" || p.slot === "stock" ? "p" : "s";
+    const tone = p.slot === "frame" ? "p" : p.slot === "barrel" || p.slot === "stock" ? "q" : "s";
     if (p.slot === "frame") {
       out.push({ id: "rear", label: "Receiver rear", slot: "frame", tone, x, y, w: w * 0.48, h });
       out.push({ id: "receiver", label: "Receiver", slot: "frame", tone, x, y, w, h });
@@ -166,15 +164,21 @@ function wearDefs(P, w) {
     `<filter id="${P}grime" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="3" seed="2"/>` +
     `<feColorMatrix type="matrix" values="0 0 0 0 0.1  0 0 0 0 0.08  0 0 0 0 0.05  2.2 0 0 0 -1.05"/></filter>` +
     `<mask id="${P}wear" maskUnits="userSpaceOnUse" x="-600" y="-400" width="2000" height="1000"><rect x="-600" y="-400" width="2000" height="1000" fill="#fff"/>` +
-    (w > 0.01 ? `<rect class="wear-chips" x="-600" y="-400" width="2000" height="1000" filter="url(#${P}chip)"/>` : "") + `</mask>` +
-    shadeDef(`${P}shade`);
+    (w > 0.01 ? `<rect class="wear-chips" x="-600" y="-400" width="2000" height="1000" filter="url(#${P}chip)"/>` : "") + `</mask>`;
 }
 
 /* ------------------------------------------------------------------ gun */
 
-// Panel lines are drawn twice, a light line just below a dark one, so they read as engraved on light and dark paint.
-const linesMarkup = (paths, fin) => `<g class="lines" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">` +
-  `<g stroke="rgba(255,255,255,.16)" transform="translate(0 1.1)">${paths}</g><g stroke="${fin.line}">${paths}</g></g>`;
+// Light and shadow of the real model: the part's greyscale light map goes over the paint and decals twice,
+// multiplied to darken what faces away from the light and screened to lift what faces it. Each image is
+// clipped to the part itself (not to a group, which would cut it off from the paint it has to blend with).
+const lightMarkup = (sh, all, fin, id, attrs = "") => {
+  if (!sh.light) return "";
+  const [x, y, w, h] = sh.light.box;
+  const img = `href="${sh.light.href}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none" clip-path="url(#${id})"`;
+  return `<g ${attrs}><clipPath id="${id}"><path d="${all}"/></clipPath>` +
+    `<image ${img} opacity="${fin.shadow}" style="mix-blend-mode:multiply"/><image ${img} opacity="${fin.light}" style="mix-blend-mode:screen"/></g>`;
+};
 
 /**
  * Markup for one gun. opts: { finish, wear (0..1), decals: [], prefix (unique id prefix) }.
@@ -186,17 +190,16 @@ export function gunMarkup(build, opts = {}) {
   const w = Math.max(0, Math.min(1, opts.wear ?? 0));
   const lay = layout(build);
   if (!lay.placed.length) return { svg: "", box: gunBox([]), lay };
-  const color = tone => (tone === "p" || tone === "s" || tone === "a" ? fin[tone] : FIXED[tone]);
+  const color = tone => fin[tone] ?? FIXED[tone];
   // Every element of a part carries data-slot/x/y so the interface can slide it (snap-in, magazine drop).
   const tr = p => `data-slot="${p.slot}" data-x="${p.x}" data-y="${p.y}" transform="translate(${p.x} ${p.y})"`;
 
   // Paths fill with the nonzero rule: holes (trigger guards, stock cut-outs) run the opposite way round,
   // so a colour block drawn over a part never punches a hole in the metal underneath.
-  let clip = "", metal = "", paint = "", shade = "", seams = "", lines = "";
+  let clip = "", metal = "", paint = "", seams = "", light = "";
   for (const p of lay.placed) {
     const all = p.shape.fills.map(f => f.d).join("");
     clip += `<path ${tr(p)} d="${all}"/>`;
-    shade += `<path ${tr(p)} d="${all}"/>`;
     seams += `<path ${tr(p)} d="${all}"/>`;
     metal += `<path ${tr(p)} d="${all}"/>`;
     paint += `<g class="part part-${p.slot}" ${tr(p)}>` + p.shape.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("") + `</g>`;
@@ -204,7 +207,7 @@ export function gunMarkup(build, opts = {}) {
       const [tx, ty] = lay.trigger;
       paint += `<path class="trigger-blade" data-x="${tx}" data-y="${ty}" transform="translate(${tx} ${ty})" d="M-3 0L4 0L7 16L3 20L-1 18Z" fill="${FIXED.k}"/>`;
     }
-    if (p.shape.lines.length) lines += `<path ${tr(p)} d="${p.shape.lines.join("")}"/>`;
+    light += lightMarkup(p.shape, all, fin, `${P}l-${p.slot}`, tr(p));
   }
   const decals = (opts.decals ?? []).map(d => decalMarkup(d, P)).join("");
   const box = gunBox(lay.placed);
@@ -213,9 +216,8 @@ export function gunMarkup(build, opts = {}) {
   const svg = `<defs><clipPath id="${P}sil">${clip}</clipPath>${wearDefs(P, w)}</defs>` +
     `<g class="metal" fill="${METAL}">${metal}</g>` +
     `<g class="paint" mask="url(#${P}wear)">${paint}<g class="decals" clip-path="url(#${P}sil)">${decals}</g></g>` +
-    `<g class="shade" fill="url(#${P}shade)">${shade}</g>` +
+    `<g class="light">${light}</g>` +
     `<g class="seams" fill="none" stroke="${SEAM}" stroke-width="1.6" stroke-linejoin="round">${seams}</g>` +
-    linesMarkup(lines, fin) +
     (w > 0.01 ? `<g clip-path="url(#${P}sil)"><rect x="${n(box.x0)}" y="${n(box.y0)}" width="${n(box.x1 - box.x0)}" height="${n(box.y1 - box.y0)}" filter="url(#${P}grime)" opacity="${n(0.7 * w)}"/>` +
       `<path d="${scratches}" stroke="#D9DAD2" stroke-opacity=".55" stroke-width="1" fill="none"/></g>` : "");
   return { svg, box, lay };
@@ -226,13 +228,12 @@ export function partMarkup(slot, id, finish = "bone", railLen = 150) {
   const p = part(slot, id);
   const sh = slot === "optic" ? p.draw(railLen) : p.draw();
   const fin = FINISHES[finish] ?? FINISHES.bone;
-  const color = tone => (tone === "p" || tone === "s" || tone === "a" ? fin[tone] : FIXED[tone]);
+  const color = tone => fin[tone] ?? FIXED[tone];
   const acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   for (const f of sh.fills) pathBox(f.d, 0, 0, acc);
   const all = sh.fills.map(f => f.d).join(""), P = `pt-${slot}-${id}-`;
-  const svg = `<defs>${shadeDef(`${P}shade`)}</defs>` +
-    `<g>${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
-    `<path d="${all}" fill="url(#${P}shade)"/><path d="${all}" fill="none" stroke="${SEAM}" stroke-width="1.6" stroke-linejoin="round"/>` +
-    (sh.lines.length ? linesMarkup(`<path d="${sh.lines.join("")}"/>`, fin) : "");
+  const svg = `<g>${sh.fills.map(f => `<path d="${f.d}" fill="${color(f.tone)}"/>`).join("")}</g>` +
+    lightMarkup(sh, all, fin, `${P}l`) +
+    `<path d="${all}" fill="none" stroke="${SEAM}" stroke-width="1.6" stroke-linejoin="round"/>`;
   return { svg, box: acc };
 }

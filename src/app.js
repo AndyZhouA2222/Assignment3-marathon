@@ -59,7 +59,7 @@ let fit = { s: 1, tx: 0, ty: 0 }, lay = null;
 
 // Areas of the 1000×520 stage the gun is fitted into. In the build step the margins hold the part callouts,
 // except on narrow screens, where callouts would be too small to read and the slot list carries the numbers.
-const FRAME_BOX = { build: [110, 128, 780, 250], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190], narrow: [70, 70, 860, 360] };
+const FRAME_BOX = { build: [100, 130, 800, 296], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190], narrow: [70, 70, 860, 360] };
 const narrow = matchMedia("(max-width: 1000px)");
 
 function renderGun() {
@@ -437,4 +437,7 @@ const skin = createSkin(app);
 const range = createRange(app);
 renderSound();
 render();
-if (state.step === "build" && !computeStats(state.build).complete) toast("Pick a barrel and a magazine, then pull the trigger", "ok", 4000);
+{
+  const { missing } = computeStats(state.build);
+  if (state.step === "build" && missing.length) toast(`Pick a ${missing.join(" and a ")}, then pull the trigger`, "ok", 4000);
+}

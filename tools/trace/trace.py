@@ -1,11 +1,14 @@
 """Traces the part library from MarathonDB weapon renders: python3 tools/trace/trace.py <renders folder>
 
-The renders are not part of this repository. The folder should hold one sub-folder per weapon with the
-transparent PNG/WebP renders named in config.json. The script flips each render so the muzzle points
-right, rotates it level, cuts it into the parts listed in config.json, simplifies each outline to a
-polygon, keeps the long straight panel lines inside it, finds its largest flat rectangle (the decal
-position) and writes src/data/traced-shapes.js. A frame's `dark` block is everything below its belly line.
-With --preview <folder> it also saves an overlay per weapon.
+The renders are not part of this repository. The folder should hold one sub-folder per weapon with its
+transparent `*full.webp` skin renders; config.json names the one each weapon is cut from. The script flips
+that render so the muzzle points right, rotates it level, cuts it into the parts listed in config.json,
+simplifies each outline to a polygon, finds its largest flat rectangle (the decal position) and writes
+src/data/traced-shapes.js. A frame's `dark` block is everything below its belly line.
+Light and shadow come from all the skins of the weapon together, with the paint taken out (see `shading`),
+and are saved per part as a small greyscale light map in assets/light/, which the bench lays over the
+chosen paint, so the parts keep the bevels and recesses of the real models.
+With --preview <folder> it also saves the shading and part outlines per weapon.
 Needs numpy, opencv-python-headless and Pillow.
 """
 import argparse, json, os
@@ -14,13 +17,84 @@ from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
+LIGHT_DIR = os.path.join(ROOT, "assets", "light")
+
+
+def open_rgba(folder, file):
+    im = Image.open(os.path.join(folder, file)).convert("RGBA")
+    if im.width < 1600: im = im.resize((1600, 800), Image.LANCZOS)
+    return np.array(im)
+
+
+def bbox(m):
+    ys, xs = np.nonzero(m)
+    return ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+
+
+def register(ref, im):
+    """Warps another skin's render onto the reference render (same weapon, same camera, slightly different framing)."""
+    y0, y1, x0, x1 = bbox(ref[..., 3] > 110)
+    b = bbox(im[..., 3] > 110)
+    out = np.zeros_like(ref)
+    out[y0:y1, x0:x1] = cv2.resize(im[b[0]:b[1], b[2]:b[3]], (x1 - x0, y1 - y0), interpolation=cv2.INTER_AREA)
+    a, c = [cv2.GaussianBlur((x[..., 3] > 110).astype(np.float32), (0, 0), 3) for x in (ref, out)]
+    M = np.eye(2, 3, dtype=np.float32)
+    try: _, M = cv2.findTransformECC(a, c, M, cv2.MOTION_AFFINE, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6), None, 5)
+    except cv2.error: pass
+    out = cv2.warpAffine(out, M, (ref.shape[1], ref.shape[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP, borderValue=(0, 0, 0, 0))
+    m, r = out[..., 3] > 110, ref[..., 3] > 110
+    return out, (m & r).sum() / (m | r).sum()
+
+
+def poisson(gx, gy):
+    """Image whose gradient best matches (gx, gy): solves the Poisson equation with a cosine transform."""
+    H, W = gx.shape
+    f = np.zeros((H + H % 2, W + W % 2))  # cv2.dct wants even sizes
+    f[:H, :W] = gx - np.pad(gx, ((0, 0), (1, 0)))[:, :W] + gy - np.pad(gy, ((1, 0), (0, 0)))[:H]
+    ky, kx = [np.cos(np.pi * np.arange(n) / n) for n in f.shape]
+    den = 2 * kx[None, :] + 2 * ky[:, None] - 4
+    den[0, 0] = 1
+    F = cv2.dct(f) / den
+    F[0, 0] = 0
+    return cv2.idct(F)[:H, :W]
+
+
+def shading(folder, file, ref, min_iou=0.93):
+    """Light and shadow on the weapon's surfaces (0 dark .. 1 light) with the paint taken out.
+    Every skin of a weapon is rendered from the same camera under the same light; only the paint and the printed
+    artwork change. So the edges in the median of the skins' lightness gradients are the edges of the shape's
+    shading, and integrating them gives the shading alone (Weiss, "Deriving intrinsic images from image sequences", 2001)."""
+    m = ref[..., 3] > 110
+    skins = [ref]
+    for f in sorted(os.listdir(os.path.join(folder, os.path.dirname(file)))):
+        if not f.endswith("full.webp") or f == os.path.basename(file): continue
+        im = open_rgba(folder, os.path.join(os.path.dirname(file), f))
+        if (im[..., 3] > 110).sum() < 1000: continue
+        im, iou = register(ref, im)
+        if iou >= min_iou: skins.append(im)
+    gx, gy = [], []
+    for im in skins:
+        L = cv2.cvtColor(np.ascontiguousarray(im[..., :3]), cv2.COLOR_RGB2LAB)[..., 0].astype(np.float32) / 255
+        lg = np.log(np.maximum(cv2.bilateralFilter(L, 5, 0.05, 3), 0.03)).astype(np.float64)
+        gx.append(np.diff(lg, axis=1, append=lg[:, -1:])); gy.append(np.diff(lg, axis=0, append=lg[-1:]))
+    gx, gy = np.median(gx, 0), np.median(gy, 0)
+    gx[~(m & np.roll(m, -1, 1))] = 0; gy[~(m & np.roll(m, -1, 0))] = 0  # nothing flows across the silhouette
+    u = poisson(gx, gy)
+    # Take out the slow drift that integration leaves across a long weapon, keeping the shading of each surface.
+    fm = m.astype(np.float64)
+    u -= 0.8 * cv2.GaussianBlur(u * fm, (0, 0), 40) / np.maximum(cv2.GaussianBlur(fm, (0, 0), 40), 1e-6)
+    lo, hi = np.percentile(u[m], [2, 98])
+    S = np.clip((u - lo) / (hi - lo), 0, 1).astype(np.float32)
+    for _ in range(2): S = cv2.bilateralFilter(S, 7, 0.08, 3)  # smooth the grain, keep the edges between surfaces
+    S[~m] = 0
+    return S, len(skins)
 
 
 def load_render(folder, spec):
-    """RGBA array of the render: flipped (muzzle right), rotated level, cropped to the weapon."""
-    im = Image.open(os.path.join(folder, spec["file"])).convert("RGBA")
-    if im.width < 1600: im = im.resize((1600, 800), Image.LANCZOS)
-    im = np.array(im.transpose(Image.FLIP_LEFT_RIGHT))
+    """The render flipped (muzzle right), rotated level and cropped to the weapon: (RGBA array, shading array, skin count)."""
+    raw = open_rgba(folder, spec["file"])
+    shade, n = shading(folder, spec["file"], raw)
+    im, shade = raw[:, ::-1].copy(), shade[:, ::-1].copy()
     mask = im[:, :, 3] > 60
     angle = spec.get("angle")
     if angle is None:
@@ -32,8 +106,9 @@ def load_render(folder, spec):
         angle = float(np.degrees(np.arctan(np.polyfit(cols[ok], tops[ok], 1)[0])))
     M = cv2.getRotationMatrix2D((800, 400), angle, 1.0)
     im = cv2.warpAffine(im, M, (1600, 800), flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0, 0))
-    ys, xs = np.nonzero(im[:, :, 3] > 60)
-    return im[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    shade = cv2.warpAffine(shade, M, (1600, 800), flags=cv2.INTER_LINEAR, borderValue=0)
+    y0, y1, x0, x1 = bbox(im[:, :, 3] > 60)
+    return im[y0:y1, x0:x1], shade[y0:y1, x0:x1], n
 
 
 def poly_mask(shape, r):
@@ -108,26 +183,22 @@ def to_path(polys, ox, oy, s, closed=True):
     return "".join("M" + "L".join(f"{f((x - ox) * s)} {f((y - oy) * s)}" for x, y in p) + ("Z" if closed else "") for p in polys)
 
 
-def edge_map(rgba):
-    """Strong edges inside the render (panel lines, steps between surfaces), with fine texture smoothed away first."""
-    g = cv2.bilateralFilter(cv2.cvtColor(np.ascontiguousarray(rgba[..., :3]), cv2.COLOR_RGB2GRAY), 9, 40, 9)
-    return cv2.Canny(g, 40, 110)
+LIGHT_SCALE = 2  # light map pixels per bench unit, about the resolution of the renders
 
 
-def panel_lines(edges, m, eps=2.5):
-    """Long, mostly straight edge runs inside a part. Short or wiggly runs (printed text, skin artwork) are dropped."""
-    e = edges.copy()
-    e[~cv2.erode(m.astype(np.uint8), np.ones((11, 11), np.uint8)).astype(bool)] = 0
-    cs, _ = cv2.findContours(e, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-    out = []
-    for c in cs:
-        if cv2.arcLength(c, False) < 90: continue
-        p = cv2.approxPolyDP(c, eps, False)[:, 0, :].astype(float)
-        x, y, w, h = cv2.boundingRect(p.astype(np.int32))
-        seg = np.hypot(*np.diff(p, axis=0).T)
-        if max(w, h) < 50 or len(p) > 14 or seg.mean() < 14: continue
-        out.append(p.tolist())
-    return out
+def light_map(shade, m, ox, oy, s, path):
+    """Saves the shading of one part as a greyscale WebP and returns where it sits, [x, y, w, h] in bench units.
+    Values just outside the part are spread outwards so the edge does not pick up a dark fringe when scaled."""
+    y0, y1, x0, x1 = bbox(m)
+    y0, x0 = max(0, y0 - 4), max(0, x0 - 4)
+    y1, x1 = min(m.shape[0], y1 + 4), min(m.shape[1], x1 + 4)
+    S, w = shade[y0:y1, x0:x1].astype(np.float32), m[y0:y1, x0:x1].astype(np.float32)
+    filled = cv2.GaussianBlur(S * w, (0, 0), 3) / np.maximum(cv2.GaussianBlur(w, (0, 0), 3), 1e-3)
+    S = np.where(w > 0, S, filled)
+    size = (max(1, round((x1 - x0) * s * LIGHT_SCALE)), max(1, round((y1 - y0) * s * LIGHT_SCALE)))
+    g = cv2.resize(S, size, interpolation=cv2.INTER_AREA)
+    Image.fromarray((np.clip(g, 0, 1) * 255).astype(np.uint8)).save(path, quality=82, method=6)
+    return [round((x0 - ox) * s, 1), round((y0 - oy) * s, 1), round((x1 - x0) * s, 1), round((y1 - y0) * s, 1)]
 
 
 def main():
@@ -137,8 +208,9 @@ def main():
     args = ap.parse_args()
     cfg = json.load(open(os.path.join(HERE, "config.json")))
     out = {k: {} for k in ("frame", "barrel", "magazine", "optic", "grip", "stock")}
+    os.makedirs(LIGHT_DIR, exist_ok=True)
     for key, c in cfg["weapons"].items():
-        rgba = load_render(args.renders, cfg["renders"][c["src"]])
+        rgba, shade, skins = load_render(args.renders, cfg["renders"][c["src"]])
         H, W = rgba.shape[:2]
         hm, eps, s = c.get("hole_min", 500), c.get("eps", 2.2), c["len"] / W
         sil = clean(rgba[..., 3] > 110, close=5, min_frac=0.01, hole_min=hm)
@@ -150,10 +222,10 @@ def main():
             regions[pid] = clean(pm & sil & ~drop, close=3, min_frac=0.05, hole_min=hm)
             used |= pm
         frame = clean(sil & ~used, close=3, min_frac=0.05, hole_min=hm)
-        edges = edge_map(rgba)
+        print(f"{key}: shading from {skins} skin{'s' * (skins > 1)}")
 
-        def build(m, ox, oy, belly=None, count=1):
-            d = {"base": to_path(outlines(m, eps, hm), ox, oy, s), "lines": to_path(panel_lines(edges, m), ox, oy, s, closed=False)}
+        def build(m, ox, oy, name, belly=None, count=1):
+            d = {"base": to_path(outlines(m, eps, hm), ox, oy, s), "light": light_map(shade, m, ox, oy, s, os.path.join(LIGHT_DIR, f"{name}.webp"))}
             top = m.copy()
             if belly is not None:
                 # Everything below the receiver's belly line (grip, trigger guard, lower housing) is the dark polymer block.
@@ -166,19 +238,19 @@ def main():
         sc = lambda v: round(v * s, 1)
         if c.get("frame"):
             ys, xs = np.nonzero(frame); fx, fy = xs.min(), ys.min()
-            fr = build(frame, fx, fy, c.get("belly"), count=2)
+            fr = build(frame, fx, fy, f"frame-{c['frame']}", c.get("belly"), count=2)
             fr["sockets"] = {n: None if p is None else [sc(p[0] - fx), sc(p[1] - fy)] + ([sc(p[2])] if len(p) > 2 else []) for n, p in c["sockets"].items()}
             out["frame"][c["frame"]] = fr
         for pid, r in c.get("parts", {}).items():
-            p = build(regions[pid], *r["origin"])
+            p = build(regions[pid], *r["origin"], f"{r['slot']}-{pid}")
             if "tip" in r: p["tip"] = sc(r["tip"])
             if "under" in r: p["under"] = None if r["under"] is None else [sc(v) for v in r["under"]]
             out[r["slot"]][pid] = p
 
         if args.preview:
             os.makedirs(args.preview, exist_ok=True)
-            bg = Image.new("RGBA", (W, H), (40, 40, 40, 255)); bg.alpha_composite(Image.fromarray(rgba))
-            bg = Image.blend(bg, Image.new("RGBA", (W, H), (40, 40, 40, 255)), 0.55)
+            g = (40 + 200 * shade).astype(np.uint8); g[~sil] = 40
+            bg = Image.fromarray(np.dstack([g, g, g, np.full_like(g, 255)]))
             d = ImageDraw.Draw(bg)
             col = {"frame": (232, 230, 223), "barrel": (194, 254, 11), "magazine": (255, 85, 0), "optic": (1, 255, 255), "stock": (234, 2, 126), "grip": (120, 90, 255)}
             for slot, m in [("frame", frame)] * bool(c.get("frame")) + [(c["parts"][k]["slot"], m) for k, m in regions.items()]:
@@ -188,7 +260,7 @@ def main():
     js = os.path.join(ROOT, "src", "data", "traced-shapes.js")
     with open(js, "w") as f:
         f.write("// Generated by tools/trace/trace.py from MarathonDB weapon renders (the renders are not included).\n")
-        f.write("// Outlines and panel lines are simplified polygons in bench units; a frame's `dark` block is its lower housing below the belly line;\n// `zones` are decal positions [x, y, w, h]. Do not edit by hand.\n")
+        f.write("// Outlines are simplified polygons in bench units; a frame's `dark` block is its lower housing below the belly line;\n// `light` is where the part's light map (assets/light/<slot>-<id>.webp) sits, [x, y, w, h]; `zones` are decal positions [x, y, w, h].\n// Do not edit by hand.\n")
         f.write("export const TRACED = " + json.dumps(out, separators=(",", ":")).replace('},"', '},\n"') + ";\n")
     print("wrote", os.path.relpath(js, ROOT), sum(len(v) for v in out.values()), "shapes")
 

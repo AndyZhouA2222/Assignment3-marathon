@@ -74,10 +74,11 @@ test("removing the frame clears everything", () => {
   assert.equal(dropped.length, 2);
 });
 
-test("the default bench is a bare frame that cannot fire yet", () => {
+test("the default bench is the stock M77, ready to fire", () => {
   const s = computeStats(DEFAULT_BUILD);
-  assert.equal(s.complete, false);
-  assert.deepEqual(s.missing, ["barrel", "magazine"]);
+  assert.equal(DEFAULT_BUILD.frame, "m77");
+  assert.equal(s.complete, true);
+  assert.deepEqual(s.missing, []);
 });
 
 test("a complete rifle reports stats normalised to 0..1", () => {

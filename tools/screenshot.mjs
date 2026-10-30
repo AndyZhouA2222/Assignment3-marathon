@@ -39,6 +39,7 @@ try {
   await v.goto(URL);
   await v.evaluate(() => localStorage.clear());
   await v.reload(); await wait(900);
+  await v.click('.slot[data-slot="barrel"]'); await v.click('.card[data-id=""]'); await wait(650);  // take the barrel off the stock M77
   await v.click("#trigger"); await wait(900);            // incomplete gun jams and points at the missing slot
   await build(v, 650);
   await skin(v, 650);
@@ -60,9 +61,10 @@ try {
 console.log(errors.length ? "page errors:\n" + errors.join("\n") : "no page errors");
 
 async function build(p, pause = 150) {
-  await p.click('.slot[data-slot="barrel"]'); await p.click('.card[data-id="cb14"]'); await wait(pause);
+  await p.click('.slot[data-slot="barrel"]'); await p.click('.card[data-id="lf30"]'); await wait(pause);
+  await p.click('.slot[data-slot="magazine"]');
   await p.click('.card[data-id="hv14"]'); await wait(pause * 2);  // wrong ammo: refused with a reason
-  await p.click('.card[data-id="lt24"]'); await wait(pause);
+  await p.click('.card[data-id="lt35"]'); await wait(pause);
   await p.click('.slot[data-slot="optic"]'); await p.click('.card[data-id="ms25"]'); await wait(pause);
   await p.click('.slot[data-slot="stock"]'); await p.click('.card[data-id="st2"]'); await wait(pause);
   await p.click('.slot[data-slot="grip"]'); await p.click('.card[data-id="vg2"]'); await wait(pause);

@@ -1,7 +1,8 @@
 // Run with: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decalZones, fitToZone, decalSize, layout, gunBox } from "../src/gun-svg.js";
+import { existsSync } from "node:fs";
+import { decalZones, fitToZone, decalSize, layout, gunBox, pathBox } from "../src/gun-svg.js";
 import { PARTS, EMPTY_BUILD } from "../src/parts.js";
 
 const full = { frame: "m77", barrel: "cb14", magazine: "lt24", optic: "ms25", grip: "vg2", stock: "st2" };
@@ -29,5 +30,15 @@ test("a decal fitted to a position stays inside it and keeps its proportions", (
       assert.ok(w <= z.w + 0.01 && (h <= z.h + 0.01 || w === 12), `${dec.kind ?? dec.text} too big for ${z.id}`);
       assert.ok(Math.abs(d.x - (z.x + z.w / 2)) < 0.01 && Math.abs(d.y - (z.y + z.h / 2)) < 0.01);
     }
+  }
+});
+
+test("every traced part has its light map on disk, covering the whole outline", () => {
+  for (const [slot, list] of Object.entries(PARTS)) for (const p of list) {
+    const sh = slot === "optic" ? p.draw(150) : p.draw();
+    if (!sh.light) continue;
+    assert.ok(existsSync(new URL(`../${sh.light.href}`, import.meta.url)), `${sh.light.href} is missing`);
+    const [x, y, w, h] = sh.light.box, b = pathBox(sh.fills.map(f => f.d).join(""));
+    assert.ok(x <= b.x0 + 1 && y <= b.y0 + 1 && x + w >= b.x1 - 1 && y + h >= b.y1 - 1, `${slot} ${p.id}: light map does not cover the part`);
   }
 });
