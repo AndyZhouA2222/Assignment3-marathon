@@ -17,38 +17,85 @@ const SEAM = "rgba(8,8,8,.9)"; // outline round every part, so parts read as sep
 export const DECAL_TINTS = ["#F7F7F2", "#0A0A0A", "#C2FE0B", "#FF5500", "#EA027E", "#3601FB", "#01FFFF"];
 
 const ORDER = ["stock", "magazine", "grip", "barrel", "frame", "optic"];
+// A barrel's back end may be at most this many times as tall as the frame's front. The tallest on its own gun
+// is the HS-22 Breacher on the Demolition (1.35); taller barrels are shrunk to fit a smaller frame.
+const MAX_BACK = 1.4;
+// How far a foregrip may tuck back behind the frame's front.
+const GRIP_TUCK = 16;
 
-/** Where each attached part sits, plus the open sockets and key points (muzzle tip, trigger). */
+/** Where each attached part sits and at what scale (k), plus the open sockets and key points (muzzle tip, trigger). */
 export function layout(build) {
   const frame = part("frame", build.frame);
   if (!frame) return { placed: [], sockets: [], tip: null, trigger: null, port: null };
-  const S = frame.sockets, barrel = part("barrel", build.barrel);
+  const S = frame.sockets, barrel = part("barrel", build.barrel), grip = part("grip", build.grip);
+  const kb = barrel ? Math.min(1, (MAX_BACK * frame.face) / barrel.back) : 1;
+  const mount = barrel?.under ? [S.muzzle[0] + barrel.under[0] * kb, S.muzzle[1] + barrel.under[1] * kb] : null;
   const at = {
-    frame: [0, 0],
-    barrel: S.muzzle,
+    frame: [0, 0, 1],
+    barrel: [...S.muzzle, kb],
     magazine: S.mag,
     optic: [S.rail[0] + S.rail[2] / 2, S.rail[1]],
     stock: S.stock,
-    grip: barrel?.under ? [S.muzzle[0] + barrel.under[0], S.muzzle[1] + barrel.under[1]] : null,
+    grip: mount,
   };
+  if (mount && grip && grip.source !== frame.source) {
+    // Away from its own gun a foregrip is kept under the barrel: moved forward if it would reach back into the
+    // receiver's lower front (its chin), shrunk if it would then overhang the muzzle, and hung below the barrel.
+    const chin = Math.max(S.muzzle[0], ...frame.draw().fills.map(f => frontBelow(f.d, S.muzzle[1] + 4)));
+    const b = gripBox(grip), rear = chin - GRIP_TUCK, end = S.muzzle[0] + barrel.tip * kb;
+    let x = mount[0], k = 1;
+    if (x + b.x0 < rear) x = rear - b.x0;
+    if (x + b.x1 > end) { k = (end - rear) / (b.x1 - b.x0); x = rear - b.x0 * k; }
+    const low = lowestEdge(barrel.draw().fills[0].d, (x + b.x0 * k - S.muzzle[0]) / kb, (x + b.x1 * k - S.muzzle[0]) / kb);
+    at.grip = [x, low > -Infinity ? S.muzzle[1] + low * kb : mount[1], k];
+  }
   const placed = ORDER.filter(slot => build[slot] && at[slot]).map(slot => {
     const p = part(slot, build[slot]);
-    return { slot, part: p, x: at[slot][0], y: at[slot][1], shape: slot === "optic" ? p.draw(S.rail[2]) : p.draw() };
+    return { slot, part: p, x: at[slot][0], y: at[slot][1], k: at[slot][2] ?? 1, shape: slot === "optic" ? p.draw(S.rail[2]) : p.draw() };
   });
   const sockets = ["barrel", "magazine", "optic", "grip", "stock"].filter(s => !build[s] && at[s]).map(s => ({ slot: s, x: at[s][0], y: at[s][1] }));
   return {
     placed, sockets,
-    tip: barrel ? [S.muzzle[0] + barrel.tip, S.muzzle[1]] : [S.muzzle[0], S.muzzle[1]],
+    tip: barrel ? [S.muzzle[0] + barrel.tip * kb, S.muzzle[1]] : [S.muzzle[0], S.muzzle[1]],
     trigger: S.trigger,
     port: [S.mag[0] - 10, 14],
   };
 }
+/** Edges of a traced outline ("M x yL x y…Z" polygons) as [[x, y], [x, y]] pairs. */
+const edges = d => [...d.matchAll(/M([^MZ]+)Z/g)].flatMap(m => {
+  const pts = m[1].split("L").map(p => p.trim().split(/\s+/).map(Number));
+  return pts.map((p, i) => [p, pts[(i + 1) % pts.length]]);
+});
+/** Point of the segment p-q where coordinate `axis` equals v. */
+const along = (p, q, axis, v) => {
+  const t = q[axis] === p[axis] ? 0 : (v - p[axis]) / (q[axis] - p[axis]);
+  return [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])];
+};
+/** Lowest point of an outline (largest y) between x0 and x1; -Infinity when it has nothing there. */
+function lowestEdge(d, x0, x1) {
+  let low = -Infinity;
+  for (const [p, q] of edges(d)) {
+    const a = Math.max(x0, Math.min(p[0], q[0])), c = Math.min(x1, Math.max(p[0], q[0]));
+    if (a <= c) low = Math.max(low, along(p, q, 0, a)[1], along(p, q, 0, c)[1], q[0] === p[0] ? Math.max(p[1], q[1]) : -Infinity);
+  }
+  return low;
+}
+/** Front-most point of an outline (largest x) below the line y = y0. */
+function frontBelow(d, y0) {
+  let front = -Infinity;
+  for (const [p, q] of edges(d)) {
+    if (p[1] >= y0) front = Math.max(front, p[0]);
+    if ((p[1] - y0) * (q[1] - y0) < 0) front = Math.max(front, along(p, q, 1, y0)[0]);
+  }
+  return front;
+}
+const gripBox = g => { const acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }; for (const f of g.draw().fills) pathBox(f.d, 0, 0, acc); return acc; };
 
-/** Bounding box of path data made by parts.js (absolute M/L points and circle arcs). */
-export function pathBox(d, dx = 0, dy = 0, acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }) {
+/** Bounding box of path data made by parts.js (absolute M/L points and circle arcs), scaled by k and moved by (dx, dy). */
+export function pathBox(d, dx = 0, dy = 0, acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }, k = 1) {
   const re = /M(-?[\d.]+) (-?[\d.]+)a(-?[\d.]+)|[ML](-?[\d.]+) (-?[\d.]+)/g;
   let m;
-  const add = (x, y) => { acc.x0 = Math.min(acc.x0, x + dx); acc.y0 = Math.min(acc.y0, y + dy); acc.x1 = Math.max(acc.x1, x + dx); acc.y1 = Math.max(acc.y1, y + dy); };
+  const add = (x, y) => { x = x * k + dx; y = y * k + dy; acc.x0 = Math.min(acc.x0, x); acc.y0 = Math.min(acc.y0, y); acc.x1 = Math.max(acc.x1, x); acc.y1 = Math.max(acc.y1, y); };
   while ((m = re.exec(d))) {
     if (m[3] !== undefined) { const x = +m[1], y = +m[2], r = +m[3]; add(x, y - r); add(x + 2 * r, y + r); }
     else add(+m[4], +m[5]);
@@ -57,7 +104,7 @@ export function pathBox(d, dx = 0, dy = 0, acc = { x0: Infinity, y0: Infinity, x
 }
 export function gunBox(placed) {
   const acc = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-  for (const p of placed) for (const f of p.shape.fills) pathBox(f.d, p.x, p.y, acc);
+  for (const p of placed) for (const f of p.shape.fills) pathBox(f.d, p.x, p.y, acc, p.k);
   return acc.x0 === Infinity ? { x0: 0, y0: 0, x1: 300, y1: 120 } : acc;
 }
 
@@ -74,7 +121,7 @@ export function decalZones(build) {
   for (const p of layout(build).placed) {
     const z = p.part.zones?.[0];
     if (!z || z[2] < 18 || z[3] < 10) continue;
-    const [x, y, w, h] = [p.x + z[0], p.y + z[1], z[2], z[3]];
+    const [x, y, w, h] = [p.x + z[0] * p.k, p.y + z[1] * p.k, z[2] * p.k, z[3] * p.k];
     const tone = p.slot === "frame" ? "p" : p.slot === "barrel" || p.slot === "stock" ? "q" : "s";
     if (p.slot === "frame") {
       out.push({ id: "rear", label: "Receiver rear", slot: "frame", tone, x, y, w: w * 0.48, h });
@@ -191,8 +238,8 @@ export function gunMarkup(build, opts = {}) {
   const lay = layout(build);
   if (!lay.placed.length) return { svg: "", box: gunBox([]), lay };
   const color = tone => fin[tone] ?? FIXED[tone];
-  // Every element of a part carries data-slot/x/y so the interface can slide it (snap-in, magazine drop).
-  const tr = p => `data-slot="${p.slot}" data-x="${p.x}" data-y="${p.y}" transform="translate(${p.x} ${p.y})"`;
+  // Every element of a part carries data-slot/x/y/k so the interface can slide it (snap-in, magazine drop).
+  const tr = p => `data-slot="${p.slot}" data-x="${p.x}" data-y="${p.y}" data-k="${p.k}" transform="translate(${p.x} ${p.y}) scale(${p.k})"`;
 
   // Paths fill with the nonzero rule: holes (trigger guards, stock cut-outs) run the opposite way round,
   // so a colour block drawn over a part never punches a hole in the metal underneath.

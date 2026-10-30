@@ -42,3 +42,24 @@ test("every traced part has its light map on disk, covering the whole outline", 
     assert.ok(x <= b.x0 + 1 && y <= b.y0 + 1 && x + w >= b.x1 - 1 && y + h >= b.y1 - 1, `${slot} ${p.id}: light map does not cover the part`);
   }
 });
+
+test("a barrel too tall for the frame is shrunk to fit; on its own gun every barrel keeps its size", () => {
+  for (const frame of PARTS.frame) for (const barrel of PARTS.barrel) {
+    const { k } = layout({ ...EMPTY_BUILD, frame: frame.id, barrel: barrel.id }).placed.find(p => p.slot === "barrel");
+    assert.ok(barrel.back * k <= 1.4 * frame.face + 0.01, `${barrel.id} too tall for ${frame.id}`);
+    if (barrel.source === frame.source) assert.equal(k, 1, `${barrel.id} resized on its own ${frame.id}`);
+  }
+  const breacher = layout({ ...EMPTY_BUILD, frame: "m77", barrel: "hs22" }).placed.find(p => p.slot === "barrel");
+  assert.ok(breacher.k < 0.7);
+});
+
+test("away from its own gun a foregrip hangs under the barrel, in front of the receiver", () => {
+  for (const frame of PARTS.frame) for (const barrel of PARTS.barrel.filter(b => b.under)) for (const grip of PARTS.grip) {
+    if (grip.source === frame.source) continue;
+    const lay = layout({ ...EMPTY_BUILD, frame: frame.id, barrel: barrel.id, grip: grip.id });
+    const g = lay.placed.find(p => p.slot === "grip"), b = gunBox([g]), [mx, my] = frame.sockets.muzzle;
+    const at = `${grip.id} under ${barrel.id} on ${frame.id}`;
+    assert.ok(b.x0 >= mx - 16 - 0.01 && b.x1 <= lay.tip[0] + 0.01, `${at}: not under the barrel`);
+    assert.ok(g.y > my, `${at}: above the bore`);
+  }
+});

@@ -55,7 +55,8 @@ const traced = (slot, id) => {
 // Frame coordinates: (0, 0) is the top-left of the receiver. Sockets say where other parts attach:
 // muzzle [x, y] (barrel grows right), mag [x, y] (magazine grows down), rail [x, y, length]
 // (optic sits on top), stock [x, y] (stock grows left, null = no stock mount), trigger [x, y].
-const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, zones: TRACED.frame[f.id].zones, draw: traced("frame", f.id) });
+// `face` is how tall the receiver's front end is at the muzzle.
+const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, face: TRACED.frame[f.id].face, zones: TRACED.frame[f.id].zones, draw: traced("frame", f.id) });
 const FRAMES = [
   frame({ id: "m77", name: "M77 Frame", source: "m77-assault-rifle", mode: "auto", tag: "Assault rifle" }),
   frame({ id: "brrt", name: "BRRT Frame", source: "brrt-smg", mode: "burst", burst: 5, tag: "SMG" }),
@@ -69,8 +70,8 @@ const FRAMES = [
 
 /* ------------------------------------------------------------------ parts */
 // Barrels: origin = muzzle socket on the bore line, growing right. `under` = foregrip mount
-// (null = no room), `tip` = where the muzzle flash appears.
-const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, zones: TRACED.barrel[b.id].zones, draw: traced("barrel", b.id) });
+// (null = no room), `tip` = where the muzzle flash appears, `back` = how tall its back end is.
+const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, back: TRACED.barrel[b.id].back, zones: TRACED.barrel[b.id].zones, draw: traced("barrel", b.id) });
 const BARRELS = [
   barrel({ id: "sb09", name: "SB-09 Stub", source: "brrt-smg", d: { a: -6, h: 6 } }),
   barrel({ id: "sn06", name: "SN-06 Snub Nose", source: "magnum-mc", d: { f: 0.02, a: -3, h: 8 } }),

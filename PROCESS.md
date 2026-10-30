@@ -43,8 +43,8 @@ The same walkthrough showed two layout problems that I fixed: the long magazine 
 - **Who and how:** _for example, "a classmate who plays shooters, on my laptop, about 10 minutes, I only said: build a gun you like and try it at the range."_
 - **What I asked them to do:**
 - **What I saw:** _where they hesitated, what they clicked first, whether they found the trigger, the decal library, the wear slider, reset_
-- **What they said:**
-- **What I changed, or why I kept the design:**
+- **What they said:** "这个breacher 好像大小有点问题，还会导致握把的位置出错" (the Breacher seems to be the wrong size, and it also puts the foregrip in the wrong place). Their screenshot showed the HS-22 Breacher on the M77 frame with the SG-3 Skid foregrip.
+- **What I changed, or why I kept the design:** The Breacher is the muzzle block of the Demolition heavy machine gun, the bulkiest gun in the library, and every part kept the size it has on its own gun, so on the M77 it stood far above and below the receiver. Its foregrip mount is at the bottom of that block and the skid reaches backwards from it, so the grip ended up under the receiver. Now a barrel whose back end is more than 1.4 times as tall as the frame's front is shrunk to fit (no barrel is that tall on its own gun, so the original weapons look the same). Away from its own gun, a foregrip hangs from the barrel's underside, in front of the receiver's lower front, and shrinks only if it would overhang the muzzle. Two tests check every frame, barrel and foregrip combination.
 
 ## AI tools used
 
@@ -68,6 +68,6 @@ I used **Claude Code** (Anthropic's coding assistant) throughout:
 
 ## What I would do next
 
-- Paint each receiver in two tones along its real part lines instead of one straight belly line, and scale parts that come from a much bigger or smaller gun.
+- Paint each receiver in two tones along its real part lines instead of one straight belly line, and fit magazines and stocks from a much bigger or smaller gun the way barrels are fitted now.
 - Let a part's decals and wear show on both sides of the gun.
 - Try the bench on a phone and with more people.
