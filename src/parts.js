@@ -15,10 +15,10 @@ export function box(x, y, w, h, c = [0, 0, 0, 0]) {
   return poly([[x + tl, y], [x + w - tr, y], [x + w, y + tr], [x + w, y + h - br], [x + w - br, y + h], [x + bl, y + h], [x, y + h - bl], [x, y + tl]]);
 }
 
-// A shape is { fills: [{ tone, d }], lines: [d] }.
-// Tones: p = paint (finish colour), s = secondary polymer, m = bare steel, k = near-black,
-// a = accent (lime), g = glass. Only p and s take the finish; the rest keep their colour.
-const shape = (fills, lines = []) => ({ fills: fills.map(([tone, d]) => ({ tone, d })), lines });
+// A shape is { fills: [{ tone, d }], light: { href, box: [x, y, w, h] } or null }.
+// Tones: p = paint (finish colour), q = second paint (barrels and stocks), s = polymer, m = bare steel,
+// k = near-black, a = accent (lime), g = glass. p, q, s and a come from the finish; the rest keep their colour.
+const shape = (fills, light = null) => ({ fills: fills.map(([tone, d]) => ({ tone, d })), light });
 
 /* ------------------------------------------------------------------ slots */
 
@@ -41,20 +41,22 @@ export const AMMO = {
 /* ------------------------------------------------------------------ traced shapes */
 // Most outlines are traced from MarathonDB weapon renders by tools/trace/trace.py and simplified to
 // polygons: `base` is the whole part, `dark` (frames only) the lower housing below the receiver,
-// `lines` the panel lines inside it and `zones` the flat areas where decals fit.
+// `light` a greyscale light map of its surfaces (taken from all the skins of the weapon, without their paint)
+// and `zones` the flat areas where decals fit.
 // Each part keeps the attachment point of the weapon it was cut from, so parts line up on any frame.
 // Paint (p) on receivers, barrels and stocks; dark polymer (s) on magazines, sights and grips.
-const BASE_TONE = { frame: "p", barrel: "p", stock: "p", magazine: "s", optic: "s", grip: "s" };
+const BASE_TONE = { frame: "p", barrel: "q", stock: "q", magazine: "s", optic: "s", grip: "s" };
 const traced = (slot, id) => {
   const t = TRACED[slot][id];
-  return () => shape(t.dark ? [[BASE_TONE[slot], t.base], ["s", t.dark]] : [[BASE_TONE[slot], t.base]], t.lines ? [t.lines] : []);
+  return () => shape(t.dark ? [[BASE_TONE[slot], t.base], ["s", t.dark]] : [[BASE_TONE[slot], t.base]], { href: `assets/light/${slot}-${id}.webp`, box: t.light });
 };
 
 /* ------------------------------------------------------------------ frames */
 // Frame coordinates: (0, 0) is the top-left of the receiver. Sockets say where other parts attach:
 // muzzle [x, y] (barrel grows right), mag [x, y] (magazine grows down), rail [x, y, length]
 // (optic sits on top), stock [x, y] (stock grows left, null = no stock mount), trigger [x, y].
-const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, zones: TRACED.frame[f.id].zones, draw: traced("frame", f.id) });
+// `face` is how tall the receiver's front end is at the muzzle.
+const frame = f => ({ ...f, sockets: TRACED.frame[f.id].sockets, face: TRACED.frame[f.id].face, zones: TRACED.frame[f.id].zones, draw: traced("frame", f.id) });
 const FRAMES = [
   frame({ id: "m77", name: "M77 Frame", source: "m77-assault-rifle", mode: "auto", tag: "Assault rifle" }),
   frame({ id: "brrt", name: "BRRT Frame", source: "brrt-smg", mode: "burst", burst: 5, tag: "SMG" }),
@@ -68,8 +70,8 @@ const FRAMES = [
 
 /* ------------------------------------------------------------------ parts */
 // Barrels: origin = muzzle socket on the bore line, growing right. `under` = foregrip mount
-// (null = no room), `tip` = where the muzzle flash appears.
-const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, zones: TRACED.barrel[b.id].zones, draw: traced("barrel", b.id) });
+// (null = no room), `tip` = where the muzzle flash appears, `back` = how tall its back end is.
+const barrel = b => ({ ...b, tip: TRACED.barrel[b.id].tip, under: TRACED.barrel[b.id].under, back: TRACED.barrel[b.id].back, zones: TRACED.barrel[b.id].zones, draw: traced("barrel", b.id) });
 const BARRELS = [
   barrel({ id: "sb09", name: "SB-09 Stub", source: "brrt-smg", d: { a: -6, h: 6 } }),
   barrel({ id: "sn06", name: "SN-06 Snub Nose", source: "magnum-mc", d: { f: 0.02, a: -3, h: 8 } }),
@@ -251,4 +253,4 @@ export function previewDelta(build, slot, id) {
 }
 const r2 = v => Math.round(v * 10) / 10;
 
-export const DEFAULT_BUILD = { ...EMPTY_BUILD, frame: "m77" };
+export const DEFAULT_BUILD = { ...EMPTY_BUILD, frame: "m77", barrel: "cb14", magazine: "lt24", stock: "bk4" };

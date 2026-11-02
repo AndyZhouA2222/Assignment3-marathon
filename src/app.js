@@ -59,7 +59,7 @@ let fit = { s: 1, tx: 0, ty: 0 }, lay = null;
 
 // Areas of the 1000×520 stage the gun is fitted into. In the build step the margins hold the part callouts,
 // except on narrow screens, where callouts would be too small to read and the slot list carries the numbers.
-const FRAME_BOX = { build: [110, 128, 780, 250], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190], narrow: [70, 70, 860, 360] };
+const FRAME_BOX = { build: [100, 130, 800, 296], skin: [50, 60, 900, 400], fire: [24, 290, 420, 190], narrow: [70, 70, 860, 360] };
 const narrow = matchMedia("(max-width: 1000px)");
 
 function renderGun() {
@@ -94,7 +94,7 @@ function toStage(e) {
 /** Moves every element of one part by (dx, dy) in gun units: used for snapping in and magazine drops. */
 function offsetPart(slot, dx, dy) {
   layers.gun.querySelectorAll(`[data-slot="${slot}"]`).forEach(el => {
-    el.setAttribute("transform", `translate(${+el.dataset.x + dx} ${+el.dataset.y + dy})`);
+    el.setAttribute("transform", `translate(${+el.dataset.x + dx} ${+el.dataset.y + dy}) scale(${el.dataset.k ?? 1})`);
   });
 }
 const SNAP_FROM = { barrel: [70, 0], magazine: [0, 60], optic: [0, -50], grip: [0, 40], stock: [-70, 0], frame: [0, -20] };
@@ -149,7 +149,7 @@ function renderCallouts() {
   const rows = Object.fromEntries(breakdown(state.build).filter(r => r.id).map(r => [r.slot, r]));
   const items = lay.placed.map(p => {
     const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    for (const f of p.shape.fills) pathBox(f.d, p.x, p.y, b);
+    for (const f of p.shape.fills) pathBox(f.d, p.x, p.y, b, p.k);
     const ax = ((b.x0 + b.x1) / 2) * fit.s + fit.tx, ay = (b.y0 + (b.y1 - b.y0) * (p.slot === "frame" ? 0.3 : 0.5)) * fit.s + fit.ty;
     return { slot: p.slot, row: rows[p.slot], ax, ay, top: CALLOUT_ROW[p.slot] === "top" };
   });
@@ -192,7 +192,8 @@ function setFocus(slot) {
 function partAt(e) {
   const p = toGun(e);
   for (const el of [...layers.gun.querySelectorAll(".metal path")].reverse()) {
-    if (el.isPointInFill?.(new DOMPoint(p.x - +el.dataset.x, p.y - +el.dataset.y))) return el.dataset.slot;
+    const k = +(el.dataset.k ?? 1);
+    if (el.isPointInFill?.(new DOMPoint((p.x - +el.dataset.x) / k, (p.y - +el.dataset.y) / k))) return el.dataset.slot;
   }
   return null;
 }
@@ -437,4 +438,7 @@ const skin = createSkin(app);
 const range = createRange(app);
 renderSound();
 render();
-if (state.step === "build" && !computeStats(state.build).complete) toast("Pick a barrel and a magazine, then pull the trigger", "ok", 4000);
+{
+  const { missing } = computeStats(state.build);
+  if (state.step === "build" && missing.length) toast(`Pick a ${missing.join(" and a ")}, then pull the trigger`, "ok", 4000);
+}
